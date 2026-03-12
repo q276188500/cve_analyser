@@ -1,0 +1,44 @@
+# Binaries
+cve-analyzer
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go vendor directory
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+data/
+reports/
+logs/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Config (user specific)
+config.local.yaml
+.env
+
+# Temporary files
+tmp/
+temp/
+*.tmp
