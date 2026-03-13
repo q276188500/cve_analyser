@@ -8,7 +8,8 @@ import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch, MagicMock
 
-from cve_analyzer.fetcher import Fetcher, FetchResult
+from cve_analyzer.fetcher import Fetcher, FetchResult, APIError
+from cve_analyzer.fetcher.base import FetcherError
 from cve_analyzer.core.models import CVE
 
 
@@ -88,7 +89,6 @@ class TestNVDFetcher:
         assert fetcher.api_key is None
         assert fetcher.rate_limit == 5  # 无 key 时限制更严格
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_nvd_fetch_single_page(self, mock_nvd_response):
         """测试获取单页 CVE 数据"""
         from cve_analyzer.fetcher.nvd import NVDFetcher
@@ -104,7 +104,6 @@ class TestNVDFetcher:
             assert cves[0].id == "CVE-2024-1234"
             assert cves[0].severity == "HIGH"
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_nvd_fetch_respects_rate_limit(self):
         """测试遵守速率限制"""
         from cve_analyzer.fetcher.nvd import NVDFetcher
@@ -127,7 +126,6 @@ class TestNVDFetcher:
         # 7 个请求，限制每秒 6 个，应该至少等待 1 秒
         assert elapsed >= 1.0
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_nvd_fetch_pagination(self):
         """测试分页获取大量数据"""
         from cve_analyzer.fetcher.nvd import NVDFetcher
@@ -165,7 +163,6 @@ class TestNVDFetcher:
             assert len(cves) == 250
             assert mock_get.call_count == 3
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_nvd_fetch_one_cve(self):
         """测试获取单个 CVE"""
         from cve_analyzer.fetcher.nvd import NVDFetcher
@@ -189,10 +186,9 @@ class TestNVDFetcher:
             assert cve is not None
             assert cve.id == "CVE-2024-1234"
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_nvd_fetch_handles_api_error(self):
         """测试处理 API 错误"""
-        from cve_analyzer.fetcher.nvd import NVDFetcher, NVDAPIError
+        from cve_analyzer.fetcher.nvd import NVDFetcher
         
         with patch("requests.get") as mock_get:
             mock_get.return_value.status_code = 503
@@ -200,10 +196,9 @@ class TestNVDFetcher:
             
             fetcher = NVDFetcher(api_key="test-key")
             
-            with pytest.raises(NVDAPIError):
+            with pytest.raises(APIError):
                 fetcher.fetch(since="2024-01-01")
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_nvd_fetch_retries_on_failure(self):
         """测试失败时重试"""
         from cve_analyzer.fetcher.nvd import NVDFetcher
@@ -288,7 +283,6 @@ class TestCVEOrgFetcher:
         fetcher = CVEOrgFetcher()
         assert fetcher.name() == "CVE.org"
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_cve_org_fetch_one(self, mock_cve_org_response):
         """测试获取单个 CVE"""
         from cve_analyzer.fetcher.cve_org import CVEOrgFetcher
@@ -304,7 +298,6 @@ class TestCVEOrgFetcher:
             assert cve.id == "CVE-2024-1234"
             assert cve.severity == "HIGH"
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_cve_org_fetch_not_found(self):
         """测试 CVE 不存在的情况"""
         from cve_analyzer.fetcher.cve_org import CVEOrgFetcher
@@ -321,7 +314,6 @@ class TestCVEOrgFetcher:
 class TestFetchOrchestrator:
     """采集协调器测试 - Phase 2 需求"""
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_orchestrator_uses_all_enabled_fetchers(self):
         """测试协调器使用所有启用的获取器"""
         from cve_analyzer.fetcher.orchestrator import FetchOrchestrator
@@ -345,7 +337,6 @@ class TestFetchOrchestrator:
         assert mock_fetchers[0].fetch.called
         assert mock_fetchers[1].fetch.called
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_orchestrator_deduplicates_cves(self):
         """测试去重 CVE"""
         from cve_analyzer.fetcher.orchestrator import FetchOrchestrator
@@ -366,7 +357,6 @@ class TestFetchOrchestrator:
         assert len(result.cves) == 1
         assert result.cves[0].id == "CVE-2024-1234"
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_orchestrator_handles_fetcher_failure(self):
         """测试处理获取器失败"""
         from cve_analyzer.fetcher.orchestrator import FetchOrchestrator
@@ -388,7 +378,6 @@ class TestFetchOrchestrator:
         assert len(result.errors) == 1
         assert result.failed == 1
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_orchestrator_respects_max_workers(self):
         """测试遵守最大并发数"""
         from cve_analyzer.fetcher.orchestrator import FetchOrchestrator
@@ -456,7 +445,6 @@ class TestFetchResult:
 class TestDataNormalization:
     """数据规范化测试 - Phase 2 需求"""
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_normalize_nvd_cve(self):
         """测试规范化 NVD 数据为 CVE 模型"""
         from cve_analyzer.fetcher.normalizer import normalize_nvd_to_cve
@@ -485,7 +473,6 @@ class TestDataNormalization:
         assert cve.cvss_score == 7.5
         assert isinstance(cve.published_date, datetime)
     
-    @pytest.mark.skip(reason="Phase 2 待实现")
     def test_normalize_cve_org_cve(self):
         """测试规范化 CVE.org 数据为 CVE 模型"""
         from cve_analyzer.fetcher.normalizer import normalize_cve_org_to_cve
