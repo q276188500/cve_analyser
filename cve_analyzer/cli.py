@@ -131,8 +131,10 @@ def init(ctx: click.Context, kernel_path: Optional[str]):
 @click.option("--until", help="同步结束日期 (YYYY-MM-DD)，默认今天")
 @click.option("--source", help="指定数据源 (nvd/cve-org/all)", default="all")
 @click.option("--dry-run", is_flag=True, help="模拟运行，不保存到数据库")
+@click.option("--resume", is_flag=True, help="启用断点续传模式")
+@click.option("--clear-state", is_flag=True, help="清除断点续传状态")
 @click.pass_context
-def sync(ctx: click.Context, since: Optional[str], until: Optional[str], source: str, dry_run: bool):
+def sync(ctx: click.Context, since: Optional[str], until: Optional[str], source: str, dry_run: bool, resume: bool, clear_state: bool):
     """
     同步 CVE 数据
     
@@ -167,7 +169,17 @@ def sync(ctx: click.Context, since: Optional[str], until: Optional[str], source:
     console.print(f"数据源: [cyan]{source}[/cyan]")
     if dry_run:
         console.print("[yellow]模拟模式: 数据不会保存到数据库[/yellow]")
+    if resume:
+        console.print("[blue]断点续传: 启用[/blue]")
     console.print()
+    
+    # 处理清除状态
+    if clear_state:
+        from cve_analyzer.fetcher.nvd import NVDFetcher
+        fetcher = NVDFetcher()
+        fetcher.clear_state()
+        console.print("[green]断点续传状态已清除[/green]")
+        return
     
     # 创建协调器
     orchestrator = FetchOrchestrator()
@@ -176,11 +188,25 @@ def sync(ctx: click.Context, since: Optional[str], until: Optional[str], source:
     start_time = datetime.utcnow()
     
     try:
-        with console.status("[bold green]正在从 NVD 获取数据...") as status:
-            result = orchestrator.fetch_all(since=since_date, until=until_date)
+        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
         
-        # 显示结果
-        console.print(f"[bold green]✓ 同步完成![/bold green]")
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(bar_width=40),
+            TaskProgressColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("[cyan]正在抓取 CVE 数据...", total=100)
+            
+            def progress_callback(current, total, message):
+                if total > 0:
+                    progress.update(task, completed=int(current * 100 / total), description=f"[cyan]{message}")
+            
+            result = orchestrator.fetch_all(since=since_date, until=until_date, 
+                                           progress_callback=progress_callback, resume=resume)
+        
+        console.print(f"[bold green]✓ 抓取完成![/bold green]")
         console.print()
         
         # 统计信息

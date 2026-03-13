@@ -57,6 +57,8 @@ class FetchOrchestrator:
         since: Optional[str] = None,
         until: Optional[str] = None,
         cve_ids: Optional[List[str]] = None,
+        progress_callback=None,
+        resume: bool = False,
     ) -> FetchResult:
         """
         从所有数据源获取 CVE 数据
@@ -65,6 +67,7 @@ class FetchOrchestrator:
             since: 起始日期，格式 YYYY-MM-DD
             until: 结束日期，格式 YYYY-MM-DD
             cve_ids: 指定 CVE ID 列表，None 则获取全部
+            progress_callback: 进度回调函数
         
         Returns:
             采集结果
@@ -73,10 +76,10 @@ class FetchOrchestrator:
         
         if cve_ids:
             # 获取指定 CVE
-            result = self._fetch_specific(cve_ids)
+            result = self._fetch_specific(cve_ids, progress_callback)
         else:
             # 批量获取
-            result = self._fetch_batch(since, until)
+            result = self._fetch_batch(since, until, progress_callback)
         
         # 去重
         result.cves = self._deduplicate(result.cves)
@@ -84,22 +87,25 @@ class FetchOrchestrator:
         
         return result
     
-    def _fetch_batch(self, since: Optional[str], until: Optional[str]) -> FetchResult:
+    def _fetch_batch(self, since: Optional[str], until: Optional[str], progress_callback=None, resume: bool = False) -> FetchResult:
         """批量获取 CVE"""
         result = FetchResult()
         
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # 提交所有任务
-            future_to_fetcher = {
-                executor.submit(fetcher.fetch, since, until): fetcher
-                for fetcher in self.fetchers
-            }
-            
-            # 收集结果
-            for future in as_completed(future_to_fetcher):
-                fetcher = future_to_fetcher[future]
+        # 目前只支持 NVD 的进度回调和断点续传
+        for fetcher in self.fetchers:
+            if fetcher.name() == "NVD":
                 try:
-                    cves = future.result()
+                    cves = fetcher.fetch(since, until, progress_callback, resume)
+                    result.cves.extend(cves)
+                    result.new += len(cves)
+                except Exception as e:
+                    error_msg = f"{fetcher.name()} fetch failed: {e}"
+                    result.errors.append(FetcherError(error_msg))
+                    result.failed += 1
+            else:
+                # 其他 fetcher 不支持进度回调和断点续传
+                try:
+                    cves = fetcher.fetch(since, until)
                     result.cves.extend(cves)
                     result.new += len(cves)
                 except Exception as e:

@@ -14,6 +14,7 @@ from cve_analyzer.core.config import get_settings
 from cve_analyzer.core.models import CVE, CVEReference, Severity
 from cve_analyzer.fetcher.base import Fetcher, APIError, FetcherError
 from cve_analyzer.fetcher.normalizer import normalize_nvd_to_cve
+from cve_analyzer.fetcher.state import FetchState
 
 
 class NVDFetcher(Fetcher):
@@ -21,13 +22,14 @@ class NVDFetcher(Fetcher):
     
     BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
     
-    def __init__(self, api_key: Optional[str] = None, rate_limit: int = None):
+    def __init__(self, api_key: Optional[str] = None, rate_limit: int = None, state_file: Optional[str] = None):
         """
         初始化 NVD 获取器
         
         Args:
             api_key: NVD API key，None 则使用配置或环境变量
             rate_limit: 速率限制，None 则自动根据是否有 key 决定
+            state_file: 状态文件路径，None 则使用默认
         """
         settings = get_settings()
         
@@ -41,6 +43,9 @@ class NVDFetcher(Fetcher):
         self.session = requests.Session()
         if self.api_key:
             self.session.headers["apiKey"] = self.api_key
+        
+        # 断点续传状态
+        self.state = FetchState(state_file or ".fetch_state_nvd.json")
     
     def name(self) -> str:
         """返回采集器名称"""
@@ -63,18 +68,7 @@ class NVDFetcher(Fetcher):
         retry=lambda e: isinstance(e, (requests.exceptions.RequestException, APIError)),
     )
     def _make_request(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        发起 API 请求
-        
-        Args:
-            params: 请求参数
-        
-        Returns:
-            JSON 响应
-        
-        Raises:
-            APIError: API 调用失败
-        """
+        """发起 API 请求"""
         self._rate_limit()
         
         response = self.session.get(self.BASE_URL, params=params, timeout=30)
@@ -105,13 +99,16 @@ class NVDFetcher(Fetcher):
         except Exception as e:
             raise FetcherError(f"Failed to parse JSON response: {e}")
     
-    def fetch(self, since: Optional[str] = None, until: Optional[str] = None) -> List[CVE]:
+    def fetch(self, since: Optional[str] = None, until: Optional[str] = None, 
+              progress_callback=None, resume: bool = False) -> List[CVE]:
         """
         获取 CVE 数据
         
         Args:
             since: 起始日期，格式 YYYY-MM-DD
             until: 结束日期，格式 YYYY-MM-DD，默认今天
+            progress_callback: 进度回调函数
+            resume: 是否启用断点续传
         
         Returns:
             CVE 列表
@@ -129,27 +126,97 @@ class NVDFetcher(Fetcher):
         else:
             end_date = datetime.utcnow()
         
-        # NVD API 限制：单次查询时间范围不能太大，按月份分块
+        # 断点续传
+        fetched_ids = set()
+        if resume:
+            last_fetch = self.state.get_last_fetch("nvd")
+            if last_fetch and last_fetch > start_date:
+                print(f"[断点续传] 从上次时间 {last_fetch.strftime('%Y-%m-%d')} 继续")
+                start_date = last_fetch
+            fetched_ids = self.state.get_fetched_cve_ids()
+            print(f"[断点续传] 已抓取 {len(fetched_ids)} 个 CVE，将跳过已存在的")
+        
+        # 计算总块数
+        total_chunks = 0
+        tmp_start = start_date
+        while tmp_start < end_date:
+            total_chunks += 1
+            tmp_start += timedelta(days=30)
+        
+        # 按月份分块抓取
         chunk_start = start_date
-        chunk_count = 0
-        while chunk_start < end_date:
-            chunk_end = min(chunk_start + timedelta(days=30), end_date)
-            chunk_cves = self._fetch_chunk(chunk_start, chunk_end)
-            cves.extend(chunk_cves)
-            chunk_start = chunk_end
-            chunk_count += 1
+        chunk_index = 0
+        
+        try:
+            while chunk_start < end_date:
+                chunk_end = min(chunk_start + timedelta(days=30), end_date)
+                chunk_key = f"{chunk_start.strftime('%Y%m%d')}_{chunk_end.strftime('%Y%m%d')}"
+                
+                # 检查是否已抓取
+                if resume:
+                    chunk_state = self.state.get_chunk_progress(chunk_key)
+                    if chunk_state and chunk_state.get("completed"):
+                        print(f"[断点续传] 跳过已完成块: {chunk_key}")
+                        chunk_start = chunk_end
+                        chunk_index += 1
+                        continue
+                
+                if progress_callback:
+                    progress_callback(chunk_index, total_chunks, 
+                        f"正在抓取 {chunk_start.strftime('%Y-%m-%d')} ~ {chunk_end.strftime('%Y-%m-%d')}")
+                
+                # 抓取块
+                chunk_cves = self._fetch_chunk(
+                    chunk_start, chunk_end, progress_callback, 
+                    chunk_index, total_chunks
+                )
+                
+                # 去重
+                new_cves = [c for c in chunk_cves if c.id not in fetched_ids]
+                cves.extend(new_cves)
+                
+                # 保存状态
+                if resume:
+                    for cve in new_cves:
+                        self.state.add_fetched_cve_id(cve.id)
+                        fetched_ids.add(cve.id)
+                    self.state.set_chunk_progress(chunk_key, {
+                        "completed": True, 
+                        "count": len(new_cves),
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                
+                chunk_start = chunk_end
+                chunk_index += 1
+                
+                if chunk_start < end_date:
+                    time.sleep(self.min_interval)
             
-            # 分块之间也加延迟，避免触发速率限制
-            if chunk_start < end_date:
-                time.sleep(self.min_interval)
+            # 保存最终状态
+            if resume:
+                self.state.set_last_fetch("nvd", datetime.utcnow())
+                self.state.save_fetched_cve_ids()
+            
+            if progress_callback:
+                progress_callback(total_chunks, total_chunks, 
+                    f"抓取完成，共 {len(cves)} 个新 CVE")
+        
+        except KeyboardInterrupt:
+            print("\n[中断] 保存状态...")
+            if resume:
+                self.state.set_last_fetch("nvd", datetime.utcnow())
+                self.state.save_fetched_cve_ids()
+            raise
         
         return cves
     
-    def _fetch_chunk(self, start_date: datetime, end_date: datetime) -> List[CVE]:
+    def _fetch_chunk(self, start_date: datetime, end_date: datetime, 
+                     progress_callback=None, chunk_index=0, total_chunks=1) -> List[CVE]:
         """获取一个时间块的 CVE"""
         cves = []
         start_index = 0
         results_per_page = 100
+        total_results = None
         
         while True:
             params = {
@@ -168,7 +235,14 @@ class NVDFetcher(Fetcher):
                 raise
             
             vulnerabilities = data.get("vulnerabilities", [])
-            total_results = data.get("totalResults", 0)
+            if total_results is None:
+                total_results = data.get("totalResults", 0)
+            
+            # 更新进度
+            if progress_callback and total_results > 0:
+                current_count = start_index + len(vulnerabilities)
+                message = f"块 {chunk_index + 1}/{total_chunks}: {current_count}/{total_results}"
+                progress_callback(chunk_index, total_chunks, message)
             
             for vuln in vulnerabilities:
                 try:
@@ -186,16 +260,13 @@ class NVDFetcher(Fetcher):
         
         return cves
     
+    def clear_state(self):
+        """清除断点续传状态"""
+        self.state.clear()
+        print("[断点续传] 状态已清除")
+    
     def fetch_one(self, cve_id: str) -> Optional[CVE]:
-        """
-        获取单个 CVE
-        
-        Args:
-            cve_id: CVE ID，如 CVE-2024-XXXX
-        
-        Returns:
-            CVE 对象或 None
-        """
+        """获取单个 CVE"""
         params = {"cveId": cve_id}
         
         data = self._make_request(params)
