@@ -4,7 +4,6 @@
 
 from typing import List, Set
 
-from cve_analyzer.analyzer import Analyzer as AnalyzerInterface, AnalysisResult, VersionImpact
 from cve_analyzer.analyzer.extractor import PatchExtractor
 from cve_analyzer.analyzer.parser import CommitParser
 from cve_analyzer.analyzer.version_impact import VersionImpactAnalyzer
@@ -12,7 +11,28 @@ from cve_analyzer.core.models import CVE, Patch
 from cve_analyzer.utils.git import GitRepository
 
 
-class Analyzer(AnalyzerInterface):
+class AnalysisResult:
+    """分析结果"""
+    def __init__(self, cve, patches, affected_files, affected_functions, version_impact):
+        self.cve = cve
+        self.patches = patches
+        self.affected_files = affected_files
+        self.affected_functions = affected_functions
+        self.version_impact = version_impact
+
+
+class VersionImpact:
+    """版本影响分析结果"""
+    def __init__(self, mainline_affected=None, stable_affected=None, 
+                 longterm_affected=None, backported_to=None, not_backported_to=None):
+        self.mainline_affected = mainline_affected or []
+        self.stable_affected = stable_affected or []
+        self.longterm_affected = longterm_affected or []
+        self.backported_to = backported_to or []
+        self.not_backported_to = not_backported_to or []
+
+
+class Analyzer:
     """补丁分析器实现"""
     
     def __init__(self, repo: GitRepository = None):

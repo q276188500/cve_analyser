@@ -95,10 +95,10 @@ class TestPatchExtractor:
             """
             
             extractor = PatchExtractor()
-            patch = extractor.extract_from_url(url)
+            patch_obj = extractor.extract_from_url(url)
             
-            assert patch is not None
-            assert "Fix vulnerability" in patch.subject
+            assert patch_obj is not None
+            assert "Fix vulnerability" in patch_obj.subject
 
 
 class TestCommitParser:
@@ -253,9 +253,12 @@ class TestAnalyzerIntegration:
     def test_analyze_cve_with_patch(self, sample_cve):
         """测试分析带补丁的 CVE"""
         from cve_analyzer.analyzer import Analyzer
+        from cve_analyzer.core.models import CVEReference
         
-        # 模拟有补丁链接
-        sample_cve.references = [Mock(url="https://git.kernel.org/.../c/abc123", type="PATCH")]
+        # 模拟有补丁链接 - 使用实际模型而非 Mock
+        sample_cve.references = [
+            CVEReference(cve_id=sample_cve.id, url="https://git.kernel.org/.../c/abc123", type="PATCH")
+        ]
         
         analyzer = Analyzer()
         
@@ -287,11 +290,12 @@ class TestAnalyzerIntegration:
     def test_extract_patches_from_references(self, sample_cve):
         """测试从参考链接提取补丁"""
         from cve_analyzer.analyzer import Analyzer
+        from cve_analyzer.core.models import CVEReference
         
         sample_cve.references = [
-            Mock(url="https://git.kernel.org/.../c/abc123", type="PATCH"),
-            Mock(url="https://git.kernel.org/.../c/def456", type="PATCH"),
-            Mock(url="https://example.com/advisory", type="ADVISORY"),
+            CVEReference(cve_id=sample_cve.id, url="https://git.kernel.org/.../c/abc123", type="PATCH"),
+            CVEReference(cve_id=sample_cve.id, url="https://git.kernel.org/.../c/def456", type="PATCH"),
+            CVEReference(cve_id=sample_cve.id, url="https://example.com/advisory", type="ADVISORY"),
         ]
         
         analyzer = Analyzer()
@@ -341,9 +345,10 @@ class TestAnalyzerErrorHandling:
     def test_handle_extraction_failure(self):
         """测试处理提取失败"""
         from cve_analyzer.analyzer import Analyzer
+        from cve_analyzer.core.models import CVEReference
         
         cve = CVE(id="CVE-2024-1234", description="Test", references=[
-            Mock(url="invalid-url", type="PATCH")
+            CVEReference(cve_id="CVE-2024-1234", url="invalid-url", type="PATCH")
         ])
         
         analyzer = Analyzer()

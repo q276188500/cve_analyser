@@ -32,9 +32,9 @@ class CommitParser:
         cve_pattern = r'CVE-\d{4}-\d{4,}'
         result["cve_ids"] = re.findall(cve_pattern, message)
         
-        # 提取 Fixes
-        fixes_pattern = r'Fixes:\s*([0-9a-f]{8,})'
-        result["fixes"] = re.findall(fixes_pattern, message)
+        # 提取 Fixes (commit hash 或 CVE ID)
+        fixes_pattern = r'Fixes:\s*([0-9a-f]{8,40}|CVE-\d{4}-\d{4,})'
+        result["fixes"] = re.findall(fixes_pattern, message, re.IGNORECASE)
         
         # 检查 Cc: stable
         result["cc_stable"] = bool(re.search(r'Cc:\s*stable@vger\.kernel\.org', message))

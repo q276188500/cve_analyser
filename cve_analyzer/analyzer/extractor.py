@@ -14,7 +14,7 @@ from cve_analyzer.utils.git import GitRepository
 class PatchExtractor:
     """补丁提取器"""
     
-    def extract_from_commit(self, repo: GitRepository, commit_hash: str) -> Optional[Patch]:
+    def extract_from_commit(self, repo, commit_hash):
         """
         从 Git commit 提取补丁
         
@@ -28,24 +28,54 @@ class PatchExtractor:
         try:
             commit_info = repo.get_commit(commit_hash)
             
-            patch = Patch(
-                commit_hash=commit_info.hash,
-                commit_hash_short=commit_info.short_hash,
-                subject=commit_info.subject,
-                body=commit_info.body,
-                author=commit_info.author,
-                author_email=commit_info.author_email,
-                author_date=commit_info.author_date,
-            )
-            
-            # 转换文件变更
-            for fc in commit_info.files_changed:
-                patch.files_changed.append(FileChange(
-                    filename=fc.filename,
-                    status=fc.status,
-                    additions=fc.additions,
-                    deletions=fc.deletions,
-                ))
+            # 处理 dict 或对象的情况
+            if isinstance(commit_info, dict):
+                patch = Patch(
+                    commit_hash=commit_info.get("hash", commit_hash),
+                    commit_hash_short=commit_info.get("short_hash", commit_hash[:12]),
+                    subject=commit_info.get("subject", ""),
+                    body=commit_info.get("body", ""),
+                    author=commit_info.get("author", ""),
+                    author_email=commit_info.get("author_email", ""),
+                    author_date=commit_info.get("author_date"),
+                )
+                
+                # 转换文件变更
+                files_changed = commit_info.get("files_changed", [])
+                for fc in files_changed:
+                    if isinstance(fc, dict):
+                        patch.files_changed.append(FileChange(
+                            filename=fc.get("filename", ""),
+                            status=fc.get("status", "Modified"),
+                            additions=fc.get("additions", 0),
+                            deletions=fc.get("deletions", 0),
+                        ))
+                    else:
+                        patch.files_changed.append(FileChange(
+                            filename=fc.filename,
+                            status=fc.status,
+                            additions=fc.additions,
+                            deletions=fc.deletions,
+                        ))
+            else:
+                patch = Patch(
+                    commit_hash=commit_info.hash,
+                    commit_hash_short=commit_info.short_hash,
+                    subject=commit_info.subject,
+                    body=commit_info.body,
+                    author=commit_info.author,
+                    author_email=commit_info.author_email,
+                    author_date=commit_info.author_date,
+                )
+                
+                # 转换文件变更
+                for fc in commit_info.files_changed:
+                    patch.files_changed.append(FileChange(
+                        filename=fc.filename,
+                        status=fc.status,
+                        additions=fc.additions,
+                        deletions=fc.deletions,
+                    ))
             
             return patch
             

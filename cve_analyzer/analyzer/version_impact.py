@@ -4,17 +4,24 @@
 分析补丁影响的内核版本范围
 """
 
-from typing import List, Set
+from typing import List
 
-from cve_analyzer.analyzer import VersionImpact
-from cve_analyzer.core.models import Patch
-from cve_analyzer.utils.git import GitRepository
+
+class VersionImpact:
+    """版本影响分析结果"""
+    def __init__(self, mainline_affected=None, stable_affected=None, 
+                 longterm_affected=None, backported_to=None, not_backported_to=None):
+        self.mainline_affected = mainline_affected or []
+        self.stable_affected = stable_affected or []
+        self.longterm_affected = longterm_affected or []
+        self.backported_to = backported_to or []
+        self.not_backported_to = not_backported_to or []
 
 
 class VersionImpactAnalyzer:
     """版本影响分析器"""
     
-    def __init__(self, repo: GitRepository):
+    def __init__(self, repo):
         """
         初始化分析器
         
@@ -23,7 +30,7 @@ class VersionImpactAnalyzer:
         """
         self.repo = repo
     
-    def analyze(self, patch: Patch) -> VersionImpact:
+    def analyze(self, patch) -> VersionImpact:
         """
         分析补丁的版本影响
         
