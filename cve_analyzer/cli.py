@@ -128,19 +128,160 @@ def init(ctx: click.Context, kernel_path: Optional[str]):
 
 @cli.command()
 @click.option("--since", help="同步起始日期 (YYYY-MM-DD)")
-@click.option("--source", help="指定数据源 (nvd/cve-org)")
+@click.option("--source", help="指定数据源 (nvd/cve-org/all)", default="all")
+@click.option("--dry-run", is_flag=True, help="模拟运行，不保存到数据库")
 @click.pass_context
-def sync(ctx: click.Context, since: Optional[str], source: Optional[str]):
+def sync(ctx: click.Context, since: Optional[str], source: str, dry_run: bool):
     """
     同步 CVE 数据
     
     从 NVD、CVE.org 等数据源同步 CVE 数据到本地数据库
+    
+    示例：
+        cve-analyzer sync                           # 同步最近 30 天
+        cve-analyzer sync --since=2024-01-01        # 从指定日期同步
+        cve-analyzer sync --source=nvd              # 只同步 NVD
+        cve-analyzer sync --dry-run                 # 模拟运行
     """
-    console.print("[yellow]同步 CVE 数据 - 待实现 (Phase 2)[/yellow]")
-    if since:
-        console.print(f"起始日期: {since}")
-    if source:
-        console.print(f"数据源: {source}")
+    from datetime import datetime, timedelta
+    from cve_analyzer.fetcher.orchestrator import FetchOrchestrator
+    from cve_analyzer.core.database import CVERepository, get_db
+    from cve_analyzer.core.models import SyncLog
+    
+    # 确定起始日期
+    if not since:
+        since_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    else:
+        since_date = since
+    
+    console.print(f"[bold green]开始同步 CVE 数据...[/bold green]")
+    console.print(f"起始日期: [cyan]{since_date}[/cyan]")
+    console.print(f"数据源: [cyan]{source}[/cyan]")
+    if dry_run:
+        console.print("[yellow]模拟模式: 数据不会保存到数据库[/yellow]")
+    console.print()
+    
+    # 创建协调器
+    orchestrator = FetchOrchestrator()
+    
+    # 记录开始时间
+    start_time = datetime.utcnow()
+    
+    try:
+        with console.status("[bold green]正在从 NVD 获取数据...") as status:
+            result = orchestrator.fetch_all(since=since_date)
+        
+        # 显示结果
+        console.print(f"[bold green]✓ 同步完成![/bold green]")
+        console.print()
+        
+        # 统计信息
+        stats_table = Table(title="同步统计")
+        stats_table.add_column("指标", style="cyan")
+        stats_table.add_column("数值", style="magenta")
+        
+        stats_table.add_row("总获取", str(result.total))
+        stats_table.add_row("新增", str(result.new))
+        stats_table.add_row("更新", str(result.updated))
+        stats_table.add_row("失败", str(result.failed))
+        
+        if result.errors:
+            stats_table.add_row("错误数", f"[red]{len(result.errors)}[/red]")
+        
+        console.print(stats_table)
+        console.print()
+        
+        # 严重程度分布
+        if result.cves:
+            severity_counts = {}
+            for cve in result.cves:
+                sev = cve.severity or "UNKNOWN"
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            
+            sev_table = Table(title="严重程度分布")
+            sev_table.add_column("严重程度", style="cyan")
+            sev_table.add_column("数量", style="magenta")
+            
+            for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]:
+                if sev in severity_counts:
+                    count = severity_counts[sev]
+                    color = {
+                        "CRITICAL": "red",
+                        "HIGH": "orange3",
+                        "MEDIUM": "yellow",
+                        "LOW": "green",
+                        "UNKNOWN": "dim",
+                    }.get(sev, "white")
+                    sev_table.add_row(f"[{color}]{sev}[/{color}]", str(count))
+            
+            console.print(sev_table)
+            console.print()
+        
+        # 保存到数据库
+        if not dry_run and result.cves:
+            with console.status("[bold green]正在保存到数据库..."):
+                db = get_db()
+                repo = CVERepository(db.get_session())
+                
+                saved_count = 0
+                for cve in result.cves:
+                    try:
+                        repo.create_or_update(cve)
+                        saved_count += 1
+                    except Exception as e:
+                        console.print(f"[red]保存 {cve.id} 失败: {e}[/red]")
+                
+                # 记录同步日志
+                end_time = datetime.utcnow()
+                sync_log = SyncLog(
+                    source=source.upper(),
+                    status="SUCCESS" if not result.errors else "PARTIAL",
+                    start_time=start_time,
+                    end_time=end_time,
+                    total_count=result.total,
+                    new_count=result.new,
+                    update_count=result.updated,
+                    error_count=result.failed,
+                    errors=[str(e) for e in result.errors] if result.errors else None,
+                )
+                
+                with db.session() as session:
+                    session.add(sync_log)
+                
+                console.print(f"[green]✓ 已保存 {saved_count} 个 CVE 到数据库[/green]")
+        
+        # 显示部分 CVE
+        if result.cves:
+            console.print()
+            cve_table = Table(title="部分 CVE 预览")
+            cve_table.add_column("CVE ID", style="cyan")
+            cve_table.add_column("严重程度", style="yellow")
+            cve_table.add_column("描述", style="dim", max_width=50)
+            
+            for cve in result.cves[:5]:
+                desc = cve.description[:47] + "..." if cve.description and len(cve.description) > 50 else (cve.description or "")
+                color = {
+                    "CRITICAL": "red",
+                    "HIGH": "orange3",
+                    "MEDIUM": "yellow",
+                    "LOW": "green",
+                }.get(cve.severity, "white")
+                
+                cve_table.add_row(
+                    cve.id,
+                    f"[{color}]{cve.severity or 'UNKNOWN'}[/{color}]",
+                    desc
+                )
+            
+            if len(result.cves) > 5:
+                cve_table.add_row("...", "...", f"还有 {len(result.cves) - 5} 个...")
+            
+            console.print(cve_table)
+    
+    except Exception as e:
+        console.print(f"[red]同步失败: {e}[/red]")
+        import traceback
+        console.print(traceback.format_exc())
 
 
 # ============================================
