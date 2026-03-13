@@ -83,25 +83,29 @@ def normalize_nvd_to_cve(nvd_data: Dict[str, Any]) -> Optional[CVE]:
     # 优先使用 CVSS 3.1
     cvss_v31 = metrics.get("cvssMetricV31", [])
     if cvss_v31:
-        cvss_data = cvss_v31[0].get("cvssData", {})
+        cvss_metric = cvss_v31[0]
+        cvss_data = cvss_metric.get("cvssData", {})
         cvss_score = cvss_data.get("baseScore")
-        severity = parse_severity(cvss_v31[0].get("baseSeverity"))
+        # 尝试从 cvssData 获取严重程度，如果不存在则从外层获取
+        severity = parse_severity(cvss_data.get("baseSeverity") or cvss_metric.get("baseSeverity"))
         cvss_vector = cvss_data.get("vectorString")
     else:
         # 退回到 CVSS 3.0
         cvss_v30 = metrics.get("cvssMetricV30", [])
         if cvss_v30:
-            cvss_data = cvss_v30[0].get("cvssData", {})
+            cvss_metric = cvss_v30[0]
+            cvss_data = cvss_metric.get("cvssData", {})
             cvss_score = cvss_data.get("baseScore")
-            severity = parse_severity(cvss_v30[0].get("baseSeverity"))
+            severity = parse_severity(cvss_data.get("baseSeverity") or cvss_metric.get("baseSeverity"))
             cvss_vector = cvss_data.get("vectorString")
         else:
             # 退回到 CVSS 2.0
             cvss_v2 = metrics.get("cvssMetricV2", [])
             if cvss_v2:
-                cvss_score = cvss_v2[0].get("cvssData", {}).get("baseScore")
-                severity = parse_severity(cvss_v2[0].get("baseSeverity"))
-                cvss_vector = cvss_v2[0].get("cvssData", {}).get("vectorString")
+                cvss_metric = cvss_v2[0]
+                cvss_score = cvss_metric.get("cvssData", {}).get("baseScore")
+                severity = parse_severity(cvss_metric.get("baseSeverity"))
+                cvss_vector = cvss_metric.get("cvssData", {}).get("vectorString")
     
     # 创建 CVE 对象
     cve = CVE(
