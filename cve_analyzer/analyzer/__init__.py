@@ -4,7 +4,8 @@
 提供 CVE 补丁分析和版本影响分析功能
 """
 
-from cve_analyzer.analyzer.core import Analyzer, AnalysisResult, VersionImpact
+from cve_analyzer.analyzer.data import PatchData, FileChangeData, AnalysisResult, VersionImpact
+from cve_analyzer.analyzer.core import Analyzer
 from cve_analyzer.analyzer.extractor import PatchExtractor
 from cve_analyzer.analyzer.parser import CommitParser
 from cve_analyzer.analyzer.version_impact import VersionImpactAnalyzer
@@ -17,4 +18,6 @@ __all__ = [
     "VersionImpactAnalyzer",
     "AnalysisResult",
     "VersionImpact",
+    "PatchData",
+    "FileChangeData",
 ]

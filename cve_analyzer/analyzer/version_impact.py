@@ -74,6 +74,10 @@ class VersionImpactAnalyzer:
             # 获取包含该 commit 的 tags
             tags = self.repo.get_tags_containing_commit(commit_hash)
             
+            # 确保 tags 是可迭代的
+            if tags is None:
+                return affected
+            
             # 过滤主线版本 tag (vX.Y.Z)
             for tag in tags:
                 if tag.startswith("v") and tag.count(".") >= 1:

@@ -7,8 +7,7 @@
 import re
 from typing import List, Optional
 
-from cve_analyzer.core.models import Patch, FileChange
-from cve_analyzer.utils.git import GitRepository
+from cve_analyzer.analyzer.data import PatchData, FileChangeData
 
 
 class PatchExtractor:
@@ -23,14 +22,14 @@ class PatchExtractor:
             commit_hash: Commit hash
         
         Returns:
-            Patch 对象或 None
+            PatchData 对象或 None
         """
         try:
             commit_info = repo.get_commit(commit_hash)
             
             # 处理 dict 或对象的情况
             if isinstance(commit_info, dict):
-                patch = Patch(
+                patch = PatchData(
                     commit_hash=commit_info.get("hash", commit_hash),
                     commit_hash_short=commit_info.get("short_hash", commit_hash[:12]),
                     subject=commit_info.get("subject", ""),
@@ -44,21 +43,21 @@ class PatchExtractor:
                 files_changed = commit_info.get("files_changed", [])
                 for fc in files_changed:
                     if isinstance(fc, dict):
-                        patch.files_changed.append(FileChange(
+                        patch.files_changed.append(FileChangeData(
                             filename=fc.get("filename", ""),
                             status=fc.get("status", "Modified"),
                             additions=fc.get("additions", 0),
                             deletions=fc.get("deletions", 0),
                         ))
                     else:
-                        patch.files_changed.append(FileChange(
+                        patch.files_changed.append(FileChangeData(
                             filename=fc.filename,
                             status=fc.status,
                             additions=fc.additions,
                             deletions=fc.deletions,
                         ))
             else:
-                patch = Patch(
+                patch = PatchData(
                     commit_hash=commit_info.hash,
                     commit_hash_short=commit_info.short_hash,
                     subject=commit_info.subject,
@@ -70,7 +69,7 @@ class PatchExtractor:
                 
                 # 转换文件变更
                 for fc in commit_info.files_changed:
-                    patch.files_changed.append(FileChange(
+                    patch.files_changed.append(FileChangeData(
                         filename=fc.filename,
                         status=fc.status,
                         additions=fc.additions,
@@ -83,7 +82,7 @@ class PatchExtractor:
             print(f"提取 commit {commit_hash} 失败: {e}")
             return None
     
-    def extract_from_url(self, url: str) -> Optional[Patch]:
+    def extract_from_url(self, url: str) -> Optional[PatchData]:
         """
         从 URL 提取补丁
         
@@ -91,7 +90,7 @@ class PatchExtractor:
             url: 补丁 URL
         
         Returns:
-            Patch 对象或 None
+            PatchData 对象或 None
         """
         import requests
         
@@ -108,7 +107,7 @@ class PatchExtractor:
             print(f"从 URL 提取补丁失败: {e}")
             return None
     
-    def _extract_from_kernel_org(self, url: str) -> Optional[Patch]:
+    def _extract_from_kernel_org(self, url: str) -> Optional[PatchData]:
         """从 git.kernel.org 提取补丁"""
         import requests
         
@@ -125,7 +124,7 @@ class PatchExtractor:
             print(f"从 kernel.org 提取失败: {e}")
             return None
     
-    def _parse_patch_text(self, text: str) -> Optional[Patch]:
+    def _parse_patch_text(self, text: str) -> Optional[PatchData]:
         """解析补丁文本"""
         try:
             # 解析邮件头
@@ -158,19 +157,19 @@ class PatchExtractor:
                 additions = file_text.count('\n+')
                 deletions = file_text.count('\n-')
                 
-                files_changed.append(FileChange(
+                files_changed.append(FileChangeData(
                     filename=filename,
                     status="Modified",
                     additions=additions,
                     deletions=deletions,
                 ))
             
-            patch = Patch(
+            patch = PatchData(
                 commit_hash="",  # 从 URL 提取的可能没有完整 hash
                 subject=subject,
                 author=author,
+                files_changed=files_changed
             )
-            patch.files_changed = files_changed
             
             return patch
             
@@ -178,7 +177,7 @@ class PatchExtractor:
             print(f"解析补丁文本失败: {e}")
             return None
     
-    def extract_from_mbox(self, content: str) -> List[Patch]:
+    def extract_from_mbox(self, content: str) -> List[PatchData]:
         """
         从 mbox 格式提取补丁
         
