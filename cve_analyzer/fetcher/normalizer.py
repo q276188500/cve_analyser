@@ -31,16 +31,43 @@ def parse_datetime(date_str: Optional[str]) -> Optional[datetime]:
     return None
 
 
-def parse_severity(severity_str: Optional[str]) -> str:
-    """解析严重程度字符串"""
-    if not severity_str:
-        return Severity.UNKNOWN.value
+def parse_severity(severity_str: Optional[str], cvss_score: Optional[float] = None) -> str:
+    """
+    解析严重程度字符串
     
-    severity_upper = severity_str.upper()
-    valid_severities = [s.value for s in Severity]
+    如果 severity_str 为空但 cvss_score 有值，根据 CVSS 分数推断
     
-    if severity_upper in valid_severities:
-        return severity_upper
+    CVSS 3.1 标准:
+    - None: 0.0
+    - LOW: 0.1-3.9
+    - MEDIUM: 4.0-6.9
+    - HIGH: 7.0-8.9
+    - CRITICAL: 9.0-10.0
+    
+    Args:
+        severity_str: 严重程度字符串
+        cvss_score: CVSS 分数
+    
+    Returns:
+        标准化的严重程度
+    """
+    # 首先尝试解析传入的 severity 字符串
+    if severity_str:
+        severity_upper = severity_str.upper()
+        valid_severities = [s.value for s in Severity]
+        if severity_upper in valid_severities:
+            return severity_upper
+    
+    # 如果 severity 为空但有 CVSS 分数，根据分数推断
+    if cvss_score is not None:
+        if cvss_score >= 9.0:
+            return Severity.CRITICAL.value
+        elif cvss_score >= 7.0:
+            return Severity.HIGH.value
+        elif cvss_score >= 4.0:
+            return Severity.MEDIUM.value
+        elif cvss_score >= 0.1:
+            return Severity.LOW.value
     
     return Severity.UNKNOWN.value
 
@@ -86,9 +113,12 @@ def normalize_nvd_to_cve(nvd_data: Dict[str, Any]) -> Optional[CVE]:
         cvss_metric = cvss_v31[0]
         cvss_data = cvss_metric.get("cvssData", {})
         cvss_score = cvss_data.get("baseScore")
-        # 尝试从 cvssData 获取严重程度，如果不存在则从外层获取
-        severity = parse_severity(cvss_data.get("baseSeverity") or cvss_metric.get("baseSeverity"))
         cvss_vector = cvss_data.get("vectorString")
+        # 尝试从 cvssData 获取严重程度，如果不存在则从外层获取，都没有则根据分数推断
+        severity = parse_severity(
+            cvss_data.get("baseSeverity") or cvss_metric.get("baseSeverity"),
+            cvss_score
+        )
     else:
         # 退回到 CVSS 3.0
         cvss_v30 = metrics.get("cvssMetricV30", [])
@@ -96,16 +126,19 @@ def normalize_nvd_to_cve(nvd_data: Dict[str, Any]) -> Optional[CVE]:
             cvss_metric = cvss_v30[0]
             cvss_data = cvss_metric.get("cvssData", {})
             cvss_score = cvss_data.get("baseScore")
-            severity = parse_severity(cvss_data.get("baseSeverity") or cvss_metric.get("baseSeverity"))
             cvss_vector = cvss_data.get("vectorString")
+            severity = parse_severity(
+                cvss_data.get("baseSeverity") or cvss_metric.get("baseSeverity"),
+                cvss_score
+            )
         else:
             # 退回到 CVSS 2.0
             cvss_v2 = metrics.get("cvssMetricV2", [])
             if cvss_v2:
                 cvss_metric = cvss_v2[0]
                 cvss_score = cvss_metric.get("cvssData", {}).get("baseScore")
-                severity = parse_severity(cvss_metric.get("baseSeverity"))
                 cvss_vector = cvss_metric.get("cvssData", {}).get("vectorString")
+                severity = parse_severity(cvss_metric.get("baseSeverity"), cvss_score)
     
     # 创建 CVE 对象
     cve = CVE(
@@ -207,15 +240,15 @@ def normalize_cve_org_to_cve(cve_org_data: Dict[str, Any]) -> Optional[CVE]:
             cvss_v31 = metric.get("cvssV3_1")
             if cvss_v31:
                 cvss_score = cvss_v31.get("baseScore")
-                severity = parse_severity(cvss_v31.get("baseSeverity"))
                 cvss_vector = cvss_v31.get("vectorString")
+                severity = parse_severity(cvss_v31.get("baseSeverity"), cvss_score)
                 break
             
             cvss_v30 = metric.get("cvssV3_0")
             if cvss_v30:
                 cvss_score = cvss_v30.get("baseScore")
-                severity = parse_severity(cvss_v30.get("baseSeverity"))
                 cvss_vector = cvss_v30.get("vectorString")
+                severity = parse_severity(cvss_v30.get("baseSeverity"), cvss_score)
                 break
     
     # 创建 CVE 对象
