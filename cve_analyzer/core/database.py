@@ -27,12 +27,20 @@ class Database:
         if db_path is None:
             db_path = get_settings().database_path
         
-        # SQLite 连接配置
+        # SQLite 连接配置 - 启用 WAL 模式以支持并发
         self.engine = create_engine(
             f"sqlite:///{db_path}",
             echo=False,  # 生产环境设为 False
             connect_args={"check_same_thread": False},
+            pool_pre_ping=True,  # 连接前检查
+            pool_recycle=3600,  # 连接回收时间
         )
+        
+        # 启用 WAL 模式
+        with self.engine.connect() as conn:
+            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+            conn.exec_driver_sql("PRAGMA synchronous=NORMAL")
+            conn.commit()
         
         self.SessionLocal = sessionmaker(
             autocommit=False,

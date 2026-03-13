@@ -217,59 +217,68 @@ def sync(ctx: click.Context, since: Optional[str], source: str, dry_run: bool):
             console.print(sev_table)
             console.print()
         
+        # 显示部分 CVE (在保存前提取数据)
+        preview_data = []
+        for cve in result.cves[:5]:
+            preview_data.append({
+                'id': cve.id,
+                'severity': cve.severity,
+                'description': cve.description or "",
+            })
+        
         # 保存到数据库
         if not dry_run and result.cves:
             with console.status("[bold green]正在保存到数据库..."):
                 db = get_db()
-                repo = CVERepository(db.get_session())
-                
-                saved_count = 0
-                for cve in result.cves:
-                    try:
-                        repo.create_or_update(cve)
-                        saved_count += 1
-                    except Exception as e:
-                        console.print(f"[red]保存 {cve.id} 失败: {e}[/red]")
-                
-                # 记录同步日志
-                end_time = datetime.utcnow()
-                sync_log = SyncLog(
-                    source=source.upper(),
-                    status="SUCCESS" if not result.errors else "PARTIAL",
-                    start_time=start_time,
-                    end_time=end_time,
-                    total_count=result.total,
-                    new_count=result.new,
-                    update_count=result.updated,
-                    error_count=result.failed,
-                    errors=[str(e) for e in result.errors] if result.errors else None,
-                )
                 
                 with db.session() as session:
+                    repo = CVERepository(session)
+                    
+                    saved_count = 0
+                    for cve in result.cves:
+                        try:
+                            repo.create_or_update(cve)
+                            saved_count += 1
+                        except Exception as e:
+                            console.print(f"[red]保存 {cve.id} 失败: {e}[/red]")
+                    
+                    # 记录同步日志
+                    end_time = datetime.utcnow()
+                    sync_log = SyncLog(
+                        source=source.upper(),
+                        status="SUCCESS" if not result.errors else "PARTIAL",
+                        start_time=start_time,
+                        end_time=end_time,
+                        total_count=result.total,
+                        new_count=result.new,
+                        update_count=result.updated,
+                        error_count=result.failed,
+                        errors=[str(e) for e in result.errors] if result.errors else None,
+                    )
                     session.add(sync_log)
                 
                 console.print(f"[green]✓ 已保存 {saved_count} 个 CVE 到数据库[/green]")
         
-        # 显示部分 CVE
-        if result.cves:
+        # 显示预览
+        if preview_data:
             console.print()
             cve_table = Table(title="部分 CVE 预览")
             cve_table.add_column("CVE ID", style="cyan")
             cve_table.add_column("严重程度", style="yellow")
             cve_table.add_column("描述", style="dim", max_width=50)
             
-            for cve in result.cves[:5]:
-                desc = cve.description[:47] + "..." if cve.description and len(cve.description) > 50 else (cve.description or "")
+            for item in preview_data:
+                desc = item['description'][:47] + "..." if len(item['description']) > 50 else item['description']
                 color = {
                     "CRITICAL": "red",
                     "HIGH": "orange3",
                     "MEDIUM": "yellow",
                     "LOW": "green",
-                }.get(cve.severity, "white")
+                }.get(item['severity'], "white")
                 
                 cve_table.add_row(
-                    cve.id,
-                    f"[{color}]{cve.severity or 'UNKNOWN'}[/{color}]",
+                    item['id'],
+                    f"[{color}]{item['severity'] or 'UNKNOWN'}[/{color}]",
                     desc
                 )
             
