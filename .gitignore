@@ -1,18 +1,30 @@
-# Binaries
-cve-analyzer
-*.exe
-*.dll
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
 *.so
-*.dylib
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Test binary
-*.test
-
-# Output of the go coverage tool
-*.out
-
-# Go vendor directory
-vendor/
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
 
 # IDE
 .idea/
@@ -42,3 +54,8 @@ config.local.yaml
 tmp/
 temp/
 *.tmp
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
