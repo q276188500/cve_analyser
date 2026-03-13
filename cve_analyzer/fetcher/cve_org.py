@@ -77,7 +77,7 @@ class CVEOrgFetcher(Fetcher):
         except Exception as e:
             raise APIError(f"Failed to parse JSON: {e}")
     
-    def fetch(self, since: Optional[str] = None) -> List[CVE]:
+    def fetch(self, since: Optional[str] = None, until: Optional[str] = None) -> List[CVE]:
         """
         获取 CVE 数据
         
@@ -86,6 +86,7 @@ class CVEOrgFetcher(Fetcher):
         
         Args:
             since: 起始日期，格式 YYYY-MM-DD (暂不支持)
+            until: 结束日期，格式 YYYY-MM-DD (暂不支持)
         
         Returns:
             CVE 列表 (空)

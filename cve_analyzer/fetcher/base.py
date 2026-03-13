@@ -18,12 +18,13 @@ class Fetcher(ABC):
         pass
     
     @abstractmethod
-    def fetch(self, since: Optional[str] = None) -> List[CVE]:
+    def fetch(self, since: Optional[str] = None, until: Optional[str] = None) -> List[CVE]:
         """
         获取 CVE 数据
         
         Args:
             since: 起始日期，格式 YYYY-MM-DD
+            until: 结束日期，格式 YYYY-MM-DD，默认今天
         
         Returns:
             CVE 列表

@@ -128,10 +128,11 @@ def init(ctx: click.Context, kernel_path: Optional[str]):
 
 @cli.command()
 @click.option("--since", help="同步起始日期 (YYYY-MM-DD)")
+@click.option("--until", help="同步结束日期 (YYYY-MM-DD)，默认今天")
 @click.option("--source", help="指定数据源 (nvd/cve-org/all)", default="all")
 @click.option("--dry-run", is_flag=True, help="模拟运行，不保存到数据库")
 @click.pass_context
-def sync(ctx: click.Context, since: Optional[str], source: str, dry_run: bool):
+def sync(ctx: click.Context, since: Optional[str], until: Optional[str], source: str, dry_run: bool):
     """
     同步 CVE 数据
     
@@ -140,6 +141,7 @@ def sync(ctx: click.Context, since: Optional[str], source: str, dry_run: bool):
     示例：
         cve-analyzer sync                           # 同步最近 30 天
         cve-analyzer sync --since=2024-01-01        # 从指定日期同步
+        cve-analyzer sync --since=2026-01-01 --until=2026-03-31  # 指定时间段
         cve-analyzer sync --source=nvd              # 只同步 NVD
         cve-analyzer sync --dry-run                 # 模拟运行
     """
@@ -154,8 +156,14 @@ def sync(ctx: click.Context, since: Optional[str], source: str, dry_run: bool):
     else:
         since_date = since
     
+    # 确定结束日期
+    if not until:
+        until_date = datetime.now().strftime("%Y-%m-%d")
+    else:
+        until_date = until
+    
     console.print(f"[bold green]开始同步 CVE 数据...[/bold green]")
-    console.print(f"起始日期: [cyan]{since_date}[/cyan]")
+    console.print(f"时间范围: [cyan]{since_date}[/cyan] ~ [cyan]{until_date}[/cyan]")
     console.print(f"数据源: [cyan]{source}[/cyan]")
     if dry_run:
         console.print("[yellow]模拟模式: 数据不会保存到数据库[/yellow]")
@@ -169,7 +177,7 @@ def sync(ctx: click.Context, since: Optional[str], source: str, dry_run: bool):
     
     try:
         with console.status("[bold green]正在从 NVD 获取数据...") as status:
-            result = orchestrator.fetch_all(since=since_date)
+            result = orchestrator.fetch_all(since=since_date, until=until_date)
         
         # 显示结果
         console.print(f"[bold green]✓ 同步完成![/bold green]")

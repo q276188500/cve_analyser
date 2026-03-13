@@ -55,6 +55,7 @@ class FetchOrchestrator:
     def fetch_all(
         self,
         since: Optional[str] = None,
+        until: Optional[str] = None,
         cve_ids: Optional[List[str]] = None,
     ) -> FetchResult:
         """
@@ -62,6 +63,7 @@ class FetchOrchestrator:
         
         Args:
             since: 起始日期，格式 YYYY-MM-DD
+            until: 结束日期，格式 YYYY-MM-DD
             cve_ids: 指定 CVE ID 列表，None 则获取全部
         
         Returns:
@@ -74,7 +76,7 @@ class FetchOrchestrator:
             result = self._fetch_specific(cve_ids)
         else:
             # 批量获取
-            result = self._fetch_batch(since)
+            result = self._fetch_batch(since, until)
         
         # 去重
         result.cves = self._deduplicate(result.cves)
@@ -82,14 +84,14 @@ class FetchOrchestrator:
         
         return result
     
-    def _fetch_batch(self, since: Optional[str]) -> FetchResult:
+    def _fetch_batch(self, since: Optional[str], until: Optional[str]) -> FetchResult:
         """批量获取 CVE"""
         result = FetchResult()
         
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # 提交所有任务
             future_to_fetcher = {
-                executor.submit(fetcher.fetch, since): fetcher
+                executor.submit(fetcher.fetch, since, until): fetcher
                 for fetcher in self.fetchers
             }
             

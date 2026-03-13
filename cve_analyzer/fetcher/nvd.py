@@ -105,12 +105,13 @@ class NVDFetcher(Fetcher):
         except Exception as e:
             raise FetcherError(f"Failed to parse JSON response: {e}")
     
-    def fetch(self, since: Optional[str] = None) -> List[CVE]:
+    def fetch(self, since: Optional[str] = None, until: Optional[str] = None) -> List[CVE]:
         """
         获取 CVE 数据
         
         Args:
             since: 起始日期，格式 YYYY-MM-DD
+            until: 结束日期，格式 YYYY-MM-DD，默认今天
         
         Returns:
             CVE 列表
@@ -123,7 +124,10 @@ class NVDFetcher(Fetcher):
         else:
             start_date = datetime.utcnow() - timedelta(days=30)
         
-        end_date = datetime.utcnow()
+        if until:
+            end_date = datetime.strptime(until, "%Y-%m-%d")
+        else:
+            end_date = datetime.utcnow()
         
         # NVD API 限制：单次查询时间范围不能太大，按月份分块
         chunk_start = start_date
