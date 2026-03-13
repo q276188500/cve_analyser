@@ -86,7 +86,7 @@ class NVDFetcher(Fetcher):
                 response_text=response.text,
             )
         elif response.status_code == 404:
-            return {"vulnerabilities": []}
+            return {"vulnerabilities": [], "totalResults": 0}
         elif response.status_code >= 500:
             raise APIError(
                 f"Server error: {response.status_code}",
@@ -116,25 +116,52 @@ class NVDFetcher(Fetcher):
             CVE 列表
         """
         cves = []
+        
+        # 确定时间范围
+        if since:
+            start_date = datetime.strptime(since, "%Y-%m-%d")
+        else:
+            start_date = datetime.utcnow() - timedelta(days=30)
+        
+        end_date = datetime.utcnow()
+        
+        # NVD API 限制：单次查询时间范围不能太大，按月份分块
+        chunk_start = start_date
+        chunk_count = 0
+        while chunk_start < end_date:
+            chunk_end = min(chunk_start + timedelta(days=30), end_date)
+            chunk_cves = self._fetch_chunk(chunk_start, chunk_end)
+            cves.extend(chunk_cves)
+            chunk_start = chunk_end
+            chunk_count += 1
+            
+            # 分块之间也加延迟，避免触发速率限制
+            if chunk_start < end_date:
+                time.sleep(self.min_interval)
+        
+        return cves
+    
+    def _fetch_chunk(self, start_date: datetime, end_date: datetime) -> List[CVE]:
+        """获取一个时间块的 CVE"""
+        cves = []
         start_index = 0
-        results_per_page = 100  # NVD 最大支持 100
+        results_per_page = 100
         
         while True:
             params = {
                 "resultsPerPage": results_per_page,
                 "startIndex": start_index,
+                "pubStartDate": start_date.strftime("%Y-%m-%dT%H:%M:%S.000"),
+                "pubEndDate": end_date.strftime("%Y-%m-%dT%H:%M:%S.000"),
+                "keywordSearch": "linux kernel",
             }
             
-            # 添加时间范围
-            if since:
-                pub_start_date = datetime.strptime(since, "%Y-%m-%d")
-                params["pubStartDate"] = pub_start_date.strftime("%Y-%m-%dT%H:%M:%S.000")
-                params["pubEndDate"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000")
-            
-            # 只获取 Linux 相关的 CVE
-            params["keywordSearch"] = "linux kernel"
-            
-            data = self._make_request(params)
+            try:
+                data = self._make_request(params)
+            except APIError as e:
+                if e.status_code == 404:
+                    break
+                raise
             
             vulnerabilities = data.get("vulnerabilities", [])
             total_results = data.get("totalResults", 0)
@@ -147,9 +174,7 @@ class NVDFetcher(Fetcher):
                 except Exception as e:
                     cve_id = vuln.get("cve", {}).get("id", "unknown")
                     print(f"Warning: Failed to normalize {cve_id}: {e}")
-                    continue
             
-            # 检查是否还有更多数据
             if start_index + len(vulnerabilities) >= total_results:
                 break
             
