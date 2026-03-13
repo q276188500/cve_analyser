@@ -1,19 +1,18 @@
-# CVE Analyzer 项目状态归档
+# CVE Analyzer 项目归档
 
-**归档时间**: 2026-03-13  
-**版本**: v0.3.0 (Phase 1-3 完成)  
-**状态**: 开发中  
-**Git 提交数**: 16 个
+**归档日期**: 2026-03-13  
+**版本**: v0.3.0  
+**状态**: Phase 3 完成
 
 ---
 
-## 📊 整体进度
+## 📊 项目进度
 
 | Phase | 状态 | 完成度 | 说明 |
 |-------|------|--------|------|
 | Phase 1 | ✅ 完成 | 100% | 基础框架 |
 | Phase 2 | ✅ 完成 | 100% | CVE 数据采集 |
-| Phase 3 | ✅ 完成 | 87% | 补丁分析 (13/15 测试通过) |
+| Phase 3 | ✅ 完成 | 100% | 补丁分析 |
 | Phase 4 | ⏳ 待开发 | 0% | 补丁状态检测 |
 | Phase 5 | ⏳ 待开发 | 0% | Kconfig 分析 |
 | Phase 6 | ⏳ 待开发 | 0% | 补丁历史追踪 |
@@ -25,7 +24,7 @@
 
 ## ✅ 已完成功能
 
-### Phase 1: 基础框架 (v0.1.0)
+### Phase 1: 基础框架
 - [x] 项目脚手架 (Python 3.10+)
 - [x] 配置管理 (Pydantic Settings)
 - [x] 数据模型 (SQLAlchemy 2.0, 12 个模型)
@@ -34,7 +33,7 @@
 - [x] CLI 框架 (Click + Rich)
 - [x] 工具函数
 
-### Phase 2: CVE 数据采集 (v0.2.0)
+### Phase 2: CVE 数据采集
 - [x] NVD 获取器 (API key, 速率限制, 分页, 重试)
 - [x] CVE.org 获取器
 - [x] 数据规范化 (NVD/CVE.org → 统一模型)
@@ -42,15 +41,14 @@
 - [x] CLI sync 命令 (since/until 参数)
 - [x] **进度条** (rich Progress 实时显示)
 - [x] **断点续传** (状态管理, 中断恢复)
-- [x] 真实 API 验证通过
 
-### Phase 3: 补丁分析 (v0.3.0) ⭐当前
+### Phase 3: 补丁分析
 - [x] **PatchExtractor** - 从 commit/URL/mbox 提取补丁
 - [x] **CommitParser** - 解析 commit message 和 diff
 - [x] **VersionImpactAnalyzer** - 分析版本影响范围
 - [x] **Analyzer** - 主分析器集成
-- [x] 测试用例 (13/15 通过)
-- [ ] 测试修复 (2个 Mock/SQLAlchemy 兼容性问题)
+- [x] 数据类 (PatchData, FileChangeData) 避免 SQLAlchemy Mock 冲突
+- [x] **15/15 测试全部通过**
 
 ---
 
@@ -65,19 +63,20 @@ cve-analyzer/
 │   │   ├── config.py
 │   │   ├── models.py
 │   │   └── database.py
-│   ├── fetcher/               # CVE 采集 ⭐Phase 2
+│   ├── fetcher/               # CVE 采集
 │   │   ├── base.py
-│   │   ├── nvd.py             # (含断点续传)
+│   │   ├── nvd.py
 │   │   ├── cve_org.py
 │   │   ├── normalizer.py
 │   │   ├── orchestrator.py
-│   │   └── state.py           # 状态管理
-│   ├── analyzer/              # 补丁分析 ⭐Phase 3
+│   │   └── state.py
+│   ├── analyzer/              # 补丁分析 ⭐ Phase 3
 │   │   ├── __init__.py
-│   │   ├── core.py            # 主分析器
-│   │   ├── extractor.py       # 补丁提取
-│   │   ├── parser.py          # 提交解析
-│   │   └── version_impact.py  # 版本分析
+│   │   ├── core.py
+│   │   ├── data.py            # 数据类 ⭐新增
+│   │   ├── extractor.py
+│   │   ├── parser.py
+│   │   └── version_impact.py
 │   ├── patchstatus/           # (待实现)
 │   ├── kconfig/               # (待实现)
 │   ├── reporter/              # (待实现)
@@ -90,17 +89,16 @@ cve-analyzer/
 │   ├── test_git.py
 │   ├── test_utils.py
 │   ├── test_fetcher.py
-│   ├── test_analyzer.py       # Phase 3 测试
+│   ├── test_analyzer.py       # Phase 3 测试 ✅
 │   └── verify_real_data.py
 ├── ARCHIVE.md                 # 本文件
-├── FETCHER_TODO.md
 ├── pyproject.toml
 └── README.md
 ```
 
 ---
 
-## 🧪 测试覆盖
+## 🧪 测试统计
 
 | 测试文件 | 用例数 | 状态 |
 |----------|--------|------|
@@ -110,27 +108,8 @@ cve-analyzer/
 | test_git.py | 24 | ✅ 通过 |
 | test_utils.py | 53 | ✅ 通过 |
 | test_fetcher.py | 22 | ✅ 通过 |
-| test_analyzer.py | 13/15 | ⚠️ 2个待修复 |
-| **总计** | **192** | **99%** |
-
-### Phase 3 测试详情
-```
-✅ test_extract_from_commit_not_found
-✅ test_extract_from_url_success
-✅ test_parse_commit_message_with_cve (CVE ID 解析)
-✅ test_parse_functions_from_diff (函数名解析)
-✅ test_parse_affected_versions_from_message
-✅ test_analyze_version_impact_mainline
-✅ test_analyze_stable_backports
-✅ test_analyze_cve_with_patch
-✅ test_analyze_cve_without_patch
-✅ test_extract_patches_from_references
-✅ test_analysis_result_structure
-✅ test_handle_extraction_failure
-✅ test_handle_network_error
-❌ test_extract_from_commit_success (Mock 问题)
-❌ test_analyze_not_backported (Mock 问题)
-```
+| test_analyzer.py | 15 | ✅ 通过 |
+| **总计** | **194** | **100%** |
 
 ---
 
@@ -141,36 +120,21 @@ cve-analyzer/
 - **HIGH**: 17 个
 - **MEDIUM**: 35 个
 - **LOW**: 2 个
-
-### 分析器功能验证
-```python
-from cve_analyzer.analyzer import Analyzer
-
-analyzer = Analyzer()
-result = analyzer.analyze(cve)
-
-# 可用功能:
-result.patches              # 提取的补丁列表
-result.affected_files       # 受影响文件
-result.affected_functions   # 受影响函数
-result.version_impact       # 版本影响分析
-  - mainline_affected       # 主线受影响版本
-  - backported_to           # 已回溯版本
-  - not_backported_to       # 未回溯版本
-```
+- **UNKNOWN**: 433 个
 
 ---
 
 ## 📝 Git 提交记录
 
 ```
-d2b53c 修复 Phase 3 测试问题
+8465a11 修复 Phase 3 所有测试问题 ⭐最新
 179ac54 Phase 3: 补丁分析模块实现
+d2b53c 修复 Phase 3 测试问题
 335d4bf 更新归档文档 v0.2.0
 afb3b97 添加进度条和断点续传功能
 2d5187c 修复严重程度解析
 ff39fcc 添加项目状态归档文档
-bea0a4b 添加 --until 参数支持指定时间段
+bea0a4b 添加 --until 参数支持
 d22e037 修复 NVD fetcher
 a888dd2 修复数据库会话管理
 de0c5eb CLI sync 命令实现
@@ -185,23 +149,26 @@ c5958b6 TDD Phase 1 & 2
 
 ## 🎯 核心成果
 
-### Phase 1-3 已完成
-1. ✅ **CVE 数据采集** - 从 NVD 抓取，支持进度条和断点续传
-2. ✅ **数据存储** - SQLite + SQLAlchemy，12 个模型
-3. ✅ **补丁分析** - 提取、解析、版本影响分析
-
-### 可使用的 CLI 命令
+### 可用功能
 ```bash
-cve-analyzer init
+# CVE 数据采集
 cve-analyzer sync --since=2026-01-01 --until=2026-03-31 --resume
-cve-analyzer sync --clear-state  # 清除断点状态
+
+# Python API
+from cve_analyzer.analyzer import Analyzer
+analyzer = Analyzer()
+result = analyzer.analyze(cve)
 ```
 
-### Python API 可用
+### 分析器输出
 ```python
-from cve_analyzer.fetcher import NVDFetcher, FetchOrchestrator
-from cve_analyzer.analyzer import Analyzer
-from cve_analyzer.core.database import Database
+result.patches              # 提取的补丁列表
+result.affected_files       # 受影响文件
+result.affected_functions   # 受影响函数
+result.version_impact       # 版本影响分析
+  - mainline_affected       # 主线受影响版本
+  - backported_to           # 已回溯版本
+  - not_backported_to       # 未回溯版本
 ```
 
 ---
@@ -214,13 +181,8 @@ from cve_analyzer.core.database import Database
 - [ ] 内容特征匹配
 - [ ] 置信度评估
 
-### Phase 5: Kconfig 分析 (优先级: 中)
-- [ ] Kconfig 解析器
-- [ ] 配置依赖图
-- [ ] 风险评估算法
-
 ---
 
 **作者**: 小葱明 🌱  
 **日期**: 2026-03-13  
-**版本**: v0.3.0
+**版本**: v0.3.0 (Phase 1-3 完成)
