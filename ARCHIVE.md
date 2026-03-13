@@ -2,7 +2,8 @@
 
 **归档时间**: 2026-03-13  
 **版本**: v0.2.0 (Phase 1 & 2 完成)  
-**状态**: 开发中
+**状态**: 开发中  
+**Git 提交数**: 12 个
 
 ---
 
@@ -11,7 +12,7 @@
 | Phase | 状态 | 完成度 | 说明 |
 |-------|------|--------|------|
 | Phase 1 | ✅ 完成 | 100% | 基础框架 |
-| Phase 2 | ✅ 完成 | 100% | CVE 数据采集 |
+| Phase 2 | ✅ 完成 | 100% | CVE 数据采集 + 进度条 + 断点续传 |
 | Phase 3 | ⏳ 待开发 | 0% | 补丁分析 |
 | Phase 4 | ⏳ 待开发 | 0% | 补丁状态检测 |
 | Phase 5 | ⏳ 待开发 | 0% | Kconfig 分析 |
@@ -24,7 +25,7 @@
 
 ## ✅ 已完成功能
 
-### Phase 1: 基础框架
+### Phase 1: 基础框架 (v0.1.0)
 - [x] 项目脚手架 (Python 3.10+)
 - [x] 配置管理 (Pydantic Settings)
 - [x] 数据模型 (SQLAlchemy 2.0, 12 个模型)
@@ -33,12 +34,14 @@
 - [x] CLI 框架 (Click + Rich)
 - [x] 工具函数
 
-### Phase 2: CVE 数据采集
+### Phase 2: CVE 数据采集 (v0.2.0)
 - [x] NVD 获取器 (API key, 速率限制, 分页, 重试)
 - [x] CVE.org 获取器
 - [x] 数据规范化 (NVD/CVE.org → 统一模型)
 - [x] 协调器 (多源聚合, 并发控制, 去重)
 - [x] CLI sync 命令 (since/until 参数)
+- [x] **进度条** (rich Progress 实时显示)
+- [x] **断点续传** (状态管理, 中断恢复)
 - [x] 真实 API 验证通过
 
 ---
@@ -49,7 +52,7 @@
 cve-analyzer/
 ├── cve_analyzer/              # 主代码
 │   ├── __init__.py
-│   ├── cli.py                 # CLI 入口
+│   ├── cli.py                 # CLI 入口 (支持进度条/断点续传)
 │   ├── core/                  # 核心模块
 │   │   ├── __init__.py
 │   │   ├── config.py          # 配置管理
@@ -58,10 +61,11 @@ cve-analyzer/
 │   ├── fetcher/               # CVE 采集
 │   │   ├── __init__.py
 │   │   ├── base.py            # 基类
-│   │   ├── nvd.py             # NVD 获取器
+│   │   ├── nvd.py             # NVD 获取器 (含断点续传)
 │   │   ├── cve_org.py         # CVE.org 获取器
 │   │   ├── normalizer.py      # 数据规范化
-│   │   └── orchestrator.py    # 协调器
+│   │   ├── orchestrator.py    # 协调器
+│   │   └── state.py           # 断点续传状态管理 ⭐新增
 │   ├── analyzer/              # 补丁分析 (待实现)
 │   ├── patchstatus/           # 补丁状态检测 (待实现)
 │   ├── kconfig/               # Kconfig 分析 (待实现)
@@ -83,9 +87,10 @@ cve-analyzer/
 ├── configs/                   # 配置文件
 │   └── config.yaml
 ├── data/                      # 数据目录 (gitignore)
+├── ARCHIVE.md                 # 本文件
+├── FETCHER_TODO.md            # 抓取功能遗留项
 ├── pyproject.toml             # 项目配置
-├── README.md                  # 项目说明
-└── ARCHIVE.md                 # 本文件
+└── README.md                  # 项目说明
 ```
 
 ---
@@ -114,13 +119,23 @@ cve-analyzer/
 | 命令 | 状态 | 说明 |
 |------|------|------|
 | `init` | ✅ | 初始化数据库 |
-| `sync` | ✅ | 同步 CVE 数据 (支持 since/until) |
+| `sync` | ✅ | 同步 CVE 数据 (支持进度条/断点续传) |
 | `analyze` | 🚧 | 框架就绪，待实现 |
 | `patch-status` | 🚧 | 框架就绪，待实现 |
 | `kconfig` | 🚧 | 框架就绪，待实现 |
 | `patch-history` | 🚧 | 框架就绪，待实现 |
 | `report` | 🚧 | 框架就绪，待实现 |
 | `query` | 🚧 | 框架就绪，待实现 |
+
+### sync 命令选项
+```bash
+cve-analyzer sync                           # 同步最近 30 天
+cve-analyzer sync --since=2024-01-01        # 从指定日期同步
+cve-analyzer sync --since=2026-01-01 --until=2026-03-31  # 指定时间段
+cve-analyzer sync --resume                  # 断点续传模式 ⭐
+cve-analyzer sync --clear-state             # 清除断点状态 ⭐
+cve-analyzer sync --dry-run                 # 模拟运行
+```
 
 ---
 
@@ -156,41 +171,41 @@ cve-analyzer/
 
 ---
 
-## ⚠️ 已知问题
+## 🎯 新增功能 (本次归档)
 
-1. **NVD 严重程度解析** - 部分 CVE 显示 UNKNOWN (CVSS 数据解析问题)
-2. **速率限制** - NVD API 限制 5-6 req/s，大量数据抓取较慢
-3. **时间范围限制** - NVD 单次查询不能太大，已自动分块处理
+### 1. 进度条 ⭐
+- 使用 rich Progress 组件
+- 实时显示块进度 (块 1/10: 50/100)
+- 支持动画效果
 
----
+### 2. 断点续传 ⭐
+- 按时间块记录状态
+- 自动跳过已完成块
+- 已抓取 CVE 去重
+- 支持 Ctrl+C 中断恢复
+- 状态文件: `.fetch_state_nvd.json`
 
-## 🎯 下一步计划
-
-### Phase 3: 补丁分析 (优先级: 高)
-- [ ] 补丁提取器 (从 commit URL 提取)
-- [ ] Commit 解析器
-- [ ] 版本影响分析引擎
-- [ ] 文件/函数定位
-
-### Phase 4: 补丁状态检测 (优先级: 高)
-- [ ] Commit hash 匹配
-- [ ] 文件哈希检测
-- [ ] 内容特征匹配
-- [ ] 置信度评估
+### 3. 严重程度解析修复 ⭐
+- 根据 CVSS 分数推断严重程度
+- CVSS 3.1 标准映射
 
 ---
 
-## 💾 提交记录
+## 📝 Git 提交记录
 
 ```
-85f76d6 Phase 1: 基础框架
-c5958b6 TDD Phase 1 & 2: 测试用例
-69630fc Phase 2: CVE 数据采集模块实现
-bfc8ea4 Phase 2 验证修复: 改进严重程度解析
-de0c5eb CLI sync 命令实现 - 打通数据采集流程
-a888dd2 修复数据库会话管理和 CLI sync 命令
-d22e037 修复 NVD fetcher: 自动分块处理大时间范围
+afb3b97 添加进度条和断点续传功能
+2d5187c 修复严重程度解析：根据 CVSS 分数推断
+ff39fcc 添加项目状态归档文档 ARCHIVE.md
 bea0a4b 添加 --until 参数支持指定时间段
+d22e037 修复 NVD fetcher: 自动分块处理大时间范围
+a888dd2 修复数据库会话管理和 CLI sync 命令
+de0c5eb CLI sync 命令实现 - 打通数据采集流程
+bfc8ea4 Phase 2 验证修复: 改进严重程度解析
+69630fc Phase 2: CVE 数据采集模块实现
+c5958b6 TDD Phase 1 & 2: 测试用例
+6189f9a Phase 1: 基础框架 (Python 版本)
+85f76d6 Phase 1: 基础框架
 ```
 
 ---
@@ -215,5 +230,16 @@ bea0a4b 添加 --until 参数支持指定时间段
 
 ---
 
+## 📋 下一步计划
+
+### Phase 3: 补丁分析 (优先级: 高)
+- [ ] 补丁提取器 (从 commit URL 提取)
+- [ ] Commit 解析器
+- [ ] 版本影响分析引擎
+- [ ] 文件/函数定位
+
+---
+
 **作者**: 小葱明 🌱  
-**日期**: 2026-03-13
+**日期**: 2026-03-13  
+**版本**: v0.2.0
