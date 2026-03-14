@@ -23,6 +23,7 @@ class TestChangeType:
         assert ChangeType.BACKPORT.value == "backport"
         assert ChangeType.CONFLICT_FIX.value == "conflict_fix"
         assert ChangeType.FOLLOW_UP.value == "follow_up"
+        assert ChangeType.CVE_RELATED.value == "cve_related"
         assert ChangeType.UNKNOWN.value == "unknown"
 
 
@@ -189,6 +190,18 @@ class TestGitHistoryTracker:
         )
         
         assert change_type == ChangeType.BACKPORT
+    
+    def test_classify_change_cve_related(self):
+        """测试分类 CVE 相关变更"""
+        tracker = GitHistoryTracker()
+        
+        change_type, confidence = tracker._classify_change(
+            "net: fix socket issue related to CVE-2024-1234",
+            {}
+        )
+        
+        assert change_type == ChangeType.CVE_RELATED
+        assert confidence > 0.5
     
     def test_is_revert_of_true(self):
         """测试检测 revert - 是 revert"""

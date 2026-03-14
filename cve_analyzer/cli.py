@@ -529,6 +529,7 @@ def patch_history(
                     "backport": "📦",
                     "conflict_fix": "⚔️",
                     "follow_up": "📎",
+                    "cve_related": "📌",  # ⭐ 新增
                     "unknown": "❓",
                 }.get(change_type, "•")
                 summary_table.add_row(f"{emoji} {change_type}", str(count))
@@ -596,6 +597,7 @@ def patch_history(
             ChangeType.BACKPORT: "green",
             ChangeType.CONFLICT_FIX: "magenta",
             ChangeType.FOLLOW_UP: "cyan",
+            ChangeType.CVE_RELATED: "bright_cyan",  # ⭐ 新增
             ChangeType.UNKNOWN: "dim",
         }
         

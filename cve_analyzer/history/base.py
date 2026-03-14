@@ -17,6 +17,7 @@ class ChangeType(Enum):
     FOLLOW_UP = "follow_up"   # 后续相关修改
     BACKPORT = "backport"     # 回溯移植
     CONFLICT_FIX = "conflict_fix"  # 冲突修复
+    CVE_RELATED = "cve_related"    # CVE 相关引用（commit message 中引用相同 CVE）
     UNKNOWN = "unknown"       # 未知类型
 
 

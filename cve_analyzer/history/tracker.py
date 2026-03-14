@@ -50,6 +50,9 @@ class GitHistoryTracker(HistoryTracker):
             r'^[Ss]ee[-\s]?also\s*:?\s*(.+)',
             r'^[Rr]elated\s*:?\s*(.+)',
         ],
+        ChangeType.CVE_RELATED: [
+            r'CVE-\d{4}-\d{4,}',  # 匹配 CVE-YYYY-NNNN 格式
+        ],
     }
     
     def __init__(self, repo_path: Optional[str] = None):
@@ -90,12 +93,29 @@ class GitHistoryTracker(HistoryTracker):
         # 查找相关 commits
         related = self.find_related_commits(patch_commit)
         
+        # ⭐ 新增: 查找 commit message 中引用相同 CVE 的提交
+        cve_related = []
+        if cve_id and cve_id != "UNKNOWN":
+            cve_related = self._find_cve_related_commits(cve_id, patch_commit)
+        
         # 分析每个 commit 的类型
         changes = []
         for commit_info in related:
             change = self._analyze_commit(commit_info, original)
             if change:
                 changes.append(change)
+        
+        # ⭐ 新增: 分析 CVE 相关提交
+        for commit_info in cve_related:
+            # 检查是否已经在 changes 中（去重）
+            existing = [c for c in changes if c.commit_hash == commit_info["commit"].hash]
+            if not existing:
+                change = self._analyze_cve_related_commit(commit_info, original, cve_id)
+                if change:
+                    changes.append(change)
+        
+        # 按时间排序
+        changes.sort(key=lambda c: c.commit_date)
         
         # 生成汇总
         summary = self._generate_summary(changes)
@@ -350,6 +370,7 @@ class GitHistoryTracker(HistoryTracker):
             ChangeType.BACKPORT: f"回溯移植补丁到稳定分支",
             ChangeType.CONFLICT_FIX: f"修复了合并冲突",
             ChangeType.FOLLOW_UP: f"后续相关修改",
+            ChangeType.CVE_RELATED: f"CVE 相关提交: {commit_info.get('cve_context', '引用相同 CVE')}",
             ChangeType.UNKNOWN: f"可能的后续修改",
         }
         
@@ -400,4 +421,132 @@ class GitHistoryTracker(HistoryTracker):
                 f"⚠️ 补丁有 {fixup_count} 次修复，原始补丁可能存在问题"
             )
         
+        # ⭐ 新增: CVE 相关提交建议
+        cve_related_count = len([c for c in changes if c.change_type == ChangeType.CVE_RELATED])
+        if cve_related_count > 0:
+            analysis["recommendations"].append(
+                f"📌 发现 {cve_related_count} 个引用相同 CVE 的相关提交，建议检查"
+            )
+        
         return analysis
+    
+    def _find_cve_related_commits(
+        self,
+        cve_id: str,
+        exclude_commit: str,
+        look_ahead: int = 200
+    ) -> List[Dict[str, Any]]:
+        """
+        查找 commit message 中引用相同 CVE 的提交
+        
+        Args:
+            cve_id: CVE ID，如 "CVE-2024-1234"
+            exclude_commit: 要排除的原始补丁 commit
+            look_ahead: 向后查找的 commit 数量
+        
+        Returns:
+            CVE 相关提交列表
+        """
+        if not self.repo or not cve_id:
+            return []
+        
+        related = []
+        cve_pattern = cve_id.replace("-", "[-]?")  # 允许 CVE-2024-1234 或 CVE 2024 1234
+        
+        try:
+            # 使用 git log 搜索包含 CVE ID 的提交
+            # --grep 搜索 commit message
+            commits_with_cve = self.repo.repo.git.log(
+                f"{exclude_commit}..HEAD",
+                f"--max-count={look_ahead}",
+                "--grep", cve_id,
+                "--format=%H"
+            ).strip().split("\n")
+            
+            for commit_hash in commits_with_cve:
+                if not commit_hash or commit_hash == exclude_commit:
+                    continue
+                
+                try:
+                    commit = self.repo.get_commit(commit_hash)
+                    if not commit:
+                        continue
+                    
+                    # 检查 commit message 中确实包含 CVE ID
+                    if cve_id.lower() not in commit.subject.lower():
+                        # 检查 body
+                        try:
+                            commit_obj = self.repo.repo.commit(commit_hash)
+                            if cve_id.lower() not in commit_obj.message.lower():
+                                continue
+                        except Exception:
+                            continue
+                    
+                    # 提取 CVE 引用的上下文
+                    cve_context = self._extract_cve_context(commit, cve_id)
+                    
+                    related.append({
+                        "commit": commit,
+                        "cve_context": cve_context,
+                        "relevance_score": 5,  # CVE 引用是高相关度
+                        "is_cve_related": True,
+                    })
+                
+                except Exception:
+                    continue
+        
+        except Exception:
+            pass
+        
+        return related
+    
+    def _extract_cve_context(self, commit: Any, cve_id: str) -> str:
+        """提取 CVE 在 commit message 中的上下文"""
+        try:
+            commit_obj = self.repo.repo.commit(commit.hash)
+            message = commit_obj.message
+            
+            # 找到 CVE ID 所在行
+            lines = message.split("\n")
+            for line in lines:
+                if cve_id.lower() in line.lower():
+                    # 返回包含 CVE ID 的行，限制长度
+                    context = line.strip()
+                    if len(context) > 100:
+                        context = context[:97] + "..."
+                    return context
+            
+            return f"引用 {cve_id}"
+        except Exception:
+            return f"引用 {cve_id}"
+    
+    def _analyze_cve_related_commit(
+        self,
+        commit_info: Dict[str, Any],
+        original: Any,
+        cve_id: str
+    ) -> Optional[TrackedChange]:
+        """分析 CVE 相关提交"""
+        commit = commit_info["commit"]
+        
+        # 提取统计信息
+        stats = self._get_commit_stats(commit)
+        
+        # 生成描述
+        cve_context = commit_info.get("cve_context", f"引用 {cve_id}")
+        description = f"CVE 相关提交: {cve_context}"
+        
+        return TrackedChange(
+            commit_hash=commit.hash,
+            commit_subject=commit.subject,
+            author=commit.author_name,
+            author_email=commit.author_email,
+            commit_date=commit.committer_date,
+            change_type=ChangeType.CVE_RELATED,
+            parent_commit=commit.parents[0] if commit.parents else None,
+            related_commits=[original.hash],
+            files_changed=commit.files_changed,
+            stats=stats,
+            description=description,
+            confidence=0.95,  # CVE 引用是高置信度
+        )

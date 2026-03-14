@@ -198,6 +198,11 @@ class HistoryAnalyzer:
             risk["score"] += 15
             risk["factors"].append(f"补丁有 {conflict_count} 次冲突修复")
         
+        # ⭐ 新增: 检查 CVE 相关提交
+        cve_related_count = len([c for c in changes if c.change_type == ChangeType.CVE_RELATED])
+        if cve_related_count > 0:
+            risk["factors"].append(f"发现 {cve_related_count} 个 CVE 相关提交，可能包含补充修复或说明")
+        
         # 确定风险等级
         if risk["score"] >= 50:
             risk["level"] = "high"
