@@ -13,9 +13,9 @@
 | Phase 1 | ✅ 完成 | 100% | 基础框架 |
 | Phase 2 | ✅ 完成 | 100% | CVE 数据采集 |
 | Phase 3 | ✅ 完成 | 100% | 补丁分析 |
-| Phase 4 | ⏳ 待开发 | 0% | 补丁状态检测 |
-| Phase 5 | ⏳ 待开发 | 0% | Kconfig 分析 |
-| Phase 6 | ⏳ 待开发 | 0% | 补丁历史追踪 |
+| Phase 4 | ✅ 完成 | 100% | 补丁状态检测 |
+| Phase 5 | ✅ 完成 | 100% | Kconfig 分析 |
+| Phase 6 | ✅ 完成 | 100% | 补丁历史追踪 |
 | Phase 7 | ⏳ 待开发 | 0% | 报告系统 |
 | Phase 8 | ⏳ 待开发 | 0% | CLI 完善 |
 | Phase 9 | ⏳ 待开发 | 0% | 测试优化 |
@@ -50,6 +50,30 @@
 - [x] 数据类 (PatchData, FileChangeData) 避免 SQLAlchemy Mock 冲突
 - [x] **15/15 测试全部通过**
 
+### Phase 4: 补丁状态检测
+- [x] **CommitHashDetector** - commit hash 匹配检测
+- [x] **FileHashDetector** - 文件哈希比对
+- [x] **RevertDetector** - revert 检测
+- [x] **ContentMatcher** - 内容特征匹配
+- [x] **MultiStrategyDetector** - 多策略整合
+- [x] 置信度评估系统
+
+### Phase 5: Kconfig 分析
+- [x] **KconfigParser** - 配置解析器
+- [x] **RuleLoader** - 规则加载器
+- [x] **DependencyGraph** - 依赖图分析
+- [x] **KconfigAnalyzer** - 主分析器
+- [x] 风险评估系统
+
+### Phase 6: 补丁历史追踪 ⭐ 新增
+- [x] **GitHistoryTracker** - Git 历史追踪器
+- [x] **HistoryAnalyzer** - 历史分析器
+- [x] 变更类型识别 (fixup/revert/refactor/backport/conflict_fix/follow_up)
+- [x] 风险评估 (低/中/高风险)
+- [x] 时间线构建
+- [x] CLI `patch-history` 命令
+- [x] **20/20 测试全部通过**
+
 ---
 
 ## 📁 项目结构
@@ -77,8 +101,24 @@ cve-analyzer/
 │   │   ├── extractor.py
 │   │   ├── parser.py
 │   │   └── version_impact.py
-│   ├── patchstatus/           # (待实现)
-│   ├── kconfig/               # (待实现)
+│   ├── patchstatus/           # 补丁状态检测 ⭐ Phase 4
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── core.py
+│   │   ├── detector.py
+│   │   └── matcher.py
+│   ├── kconfig/               # Kconfig 分析 ⭐ Phase 5
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── analyzer.py
+│   │   ├── graph.py
+│   │   ├── loader.py
+│   │   └── parser.py
+│   ├── history/               # 补丁历史追踪 ⭐ Phase 6
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── tracker.py
+│   │   └── analyzer.py
 │   ├── reporter/              # (待实现)
 │   └── utils/
 ├── tests/
@@ -109,7 +149,8 @@ cve-analyzer/
 | test_utils.py | 53 | ✅ 通过 |
 | test_fetcher.py | 22 | ✅ 通过 |
 | test_analyzer.py | 15 | ✅ 通过 |
-| **总计** | **194** | **100%** |
+| test_history.py | 20 | ✅ 通过 |
+| **总计** | **214** | **100%** |
 
 ---
 

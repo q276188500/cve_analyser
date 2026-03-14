@@ -427,27 +427,201 @@ def kconfig(
 
 @cli.command("patch-history")
 @click.argument("cve-id")
+@click.option("--kernel-path", type=click.Path(exists=True), help="内核源码路径")
+@click.option("--show-all", is_flag=True, help="显示所有变更")
 @click.option("--show-fixups", is_flag=True, help="显示 fixup 提交")
 @click.option("--show-reverts", is_flag=True, help="显示 revert 提交")
 @click.option("--show-conflicts", is_flag=True, help="显示冲突解决")
+@click.option("--limit", default=20, help="最大结果数")
 @click.pass_context
 def patch_history(
     ctx: click.Context,
     cve_id: str,
+    kernel_path: Optional[str],
+    show_all: bool,
     show_fixups: bool,
     show_reverts: bool,
     show_conflicts: bool,
+    limit: int,
 ):
     """
-    追踪补丁修改历史
+    追踪补丁修改历史 (Phase 6)
     
-    查看补丁的后续修改，包括：
+    查看补丁的后续修改，包括:
     - fixup: 修复补丁
     - revert: 回退提交
     - refactor: 重构修改
     - conflict: 冲突解决
+    
+    示例:
+        cve-analyzer patch-history CVE-2024-XXXX
+        cve-analyzer patch-history CVE-2024-XXXX --kernel-path=/path/to/linux
+        cve-analyzer patch-history CVE-2024-XXXX --show-reverts
     """
-    console.print(f"[yellow]补丁历史 {cve_id} - 待实现 (Phase 6)[/yellow]")
+    from cve_analyzer.history import HistoryAnalyzer, ChangeType
+    
+    # 获取数据库会话
+    db = ctx.ensure_object(dict).get('db')
+    
+    with console.status("[bold green]正在查询数据库..."):
+        from cve_analyzer.core.models import CVE, Patch
+        
+        cve = db.query(CVE).filter(CVE.cve_id == cve_id).first()
+        if not cve:
+            console.print(f"[red]错误: 数据库中未找到 {cve_id}[/red]")
+            console.print(f"请先运行: cve-analyzer sync --cve={cve_id}")
+            return
+        
+        # 获取补丁信息
+        patches = db.query(Patch).filter(Patch.cve_id == cve_id).all()
+        if not patches:
+            console.print(f"[red]错误: 未找到 {cve_id} 的补丁信息[/red]")
+            return
+    
+    # 使用第一个补丁进行历史追踪
+    patch = patches[0]
+    patch_commit = patch.commit_hash
+    
+    if not patch_commit:
+        console.print(f"[red]错误: 补丁没有关联的 commit hash[/red]")
+        return
+    
+    # 初始化追踪器
+    try:
+        tracker_path = kernel_path or ctx.obj.get('kernel_path')
+        analyzer = HistoryAnalyzer()
+        if tracker_path:
+            from cve_analyzer.history import GitHistoryTracker
+            analyzer.tracker = GitHistoryTracker(tracker_path)
+    except Exception as e:
+        console.print(f"[red]初始化失败: {e}[/red]")
+        return
+    
+    # 执行历史追踪
+    with console.status(f"[bold green]正在追踪补丁 {patch_commit[:12]} 的历史..."):
+        try:
+            result = analyzer.analyze(patch_commit, cve_id)
+        except Exception as e:
+            console.print(f"[red]追踪失败: {e}[/red]")
+            return
+    
+    # 显示结果
+    console.print()
+    console.print(Panel(
+        f"[bold cyan]{cve_id}[/bold cyan]\n"
+        f"补丁: [yellow]{patch_commit[:12]}[/yellow] - {result.original_subject[:50]}...",
+        title="🔍 补丁历史追踪",
+        border_style="green"
+    ))
+    
+    # 显示汇总信息
+    if result.summary:
+        summary_table = Table(title="📊 变更汇总")
+        summary_table.add_column("类型", style="cyan")
+        summary_table.add_column("数量", justify="right", style="magenta")
+        
+        for change_type, count in result.summary.items():
+            if change_type != "total" and count > 0:
+                emoji = {
+                    "fixup": "🔧",
+                    "revert": "↩️",
+                    "refactor": "♻️",
+                    "backport": "📦",
+                    "conflict_fix": "⚔️",
+                    "follow_up": "📎",
+                    "unknown": "❓",
+                }.get(change_type, "•")
+                summary_table.add_row(f"{emoji} {change_type}", str(count))
+        
+        summary_table.add_row("[bold]总计[/bold]", str(result.summary.get("total", 0)), style="bold")
+        console.print(summary_table)
+    
+    # 显示风险评估
+    if result.analysis.get("risk_assessment"):
+        risk = result.analysis["risk_assessment"]
+        risk_color = {"low": "green", "medium": "yellow", "high": "red"}.get(risk["level"], "white")
+        
+        console.print()
+        console.print(Panel(
+            f"[bold {risk_color}]风险等级: {risk['level'].upper()}[/bold {risk_color}]\n"
+            f"风险评分: {risk['score']}/100\n"
+            + (f"\n[yellow]风险因素:[/yellow]\n" + "\n".join(f"  • {f}" for f in risk["factors"]) if risk["factors"] else "")
+            + (f"\n\n[green]缓解措施:[/green]\n" + "\n".join(f"  ✓ {m}" for m in risk["mitigations"]) if risk["mitigations"] else ""),
+            title="⚠️ 风险评估",
+            border_style=risk_color
+        ))
+    
+    # 显示最新状态
+    latest_status = result.get_latest_status()
+    status_emoji = {
+        "original": "✅",
+        "reverted": "❌",
+        "fixed": "🔧",
+        "refactored": "♻️",
+        "modified": "📝",
+    }.get(latest_status, "❓")
+    
+    console.print(f"\n[bold]当前状态:[/bold] {status_emoji} {latest_status}")
+    
+    # 过滤并显示变更列表
+    changes_to_show = result.changes[:limit]
+    
+    # 应用过滤器
+    if not show_all:
+        filtered = []
+        for change in changes_to_show:
+            if show_fixups and change.change_type == ChangeType.FIXUP:
+                filtered.append(change)
+            elif show_reverts and change.change_type == ChangeType.REVERT:
+                filtered.append(change)
+            elif show_conflicts and change.change_type == ChangeType.CONFLICT_FIX:
+                filtered.append(change)
+        
+        if show_fixups or show_reverts or show_conflicts:
+            changes_to_show = filtered
+    
+    if changes_to_show:
+        console.print()
+        changes_table = Table(title=f"📝 相关变更 (显示 {len(changes_to_show)} 个)")
+        changes_table.add_column("日期", style="dim", width=12)
+        changes_table.add_column("类型", width=12)
+        changes_table.add_column("Commit", width=10)
+        changes_table.add_column("作者", width=15)
+        changes_table.add_column("描述")
+        
+        type_colors = {
+            ChangeType.FIXUP: "yellow",
+            ChangeType.REVERT: "red",
+            ChangeType.REFACTOR: "blue",
+            ChangeType.BACKPORT: "green",
+            ChangeType.CONFLICT_FIX: "magenta",
+            ChangeType.FOLLOW_UP: "cyan",
+            ChangeType.UNKNOWN: "dim",
+        }
+        
+        for change in changes_to_show:
+            date_str = change.commit_date.strftime("%Y-%m-%d")
+            type_str = change.change_type.value
+            color = type_colors.get(change.change_type, "white")
+            
+            changes_table.add_row(
+                date_str,
+                f"[{color}]{type_str}[/{color}]",
+                change.commit_hash[:8],
+                change.author[:14],
+                change.description[:40] + "..." if len(change.description) > 40 else change.description,
+            )
+        
+        console.print(changes_table)
+    else:
+        console.print("\n[dim]未找到相关变更[/dim]")
+    
+    # 显示建议
+    if result.analysis.get("recommendations"):
+        console.print()
+        console.print("[bold cyan]💡 建议:[/bold cyan]")
+        for rec in result.analysis["recommendations"]:
+            console.print(f"  {rec}")
 
 
 # ============================================
