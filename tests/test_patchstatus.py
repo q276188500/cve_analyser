@@ -27,9 +27,9 @@ class TestPatchDetector:
     @pytest.fixture
     def sample_patch(self):
         """示例补丁"""
-        patch = Mock(spec=Patch)
-        patch.commit_hash = "abc123def45678901234567890abcdef12345678"
-        patch.files_changed = [
+        mock_patch = Mock(spec=Patch)
+        mock_patch.commit_hash = "abc123def45678901234567890abcdef12345678"
+        mock_patch.files_changed = [
             Mock(filename="net/core/sock.c", new_file_hash="sha256_hash_here")
         ]
         return patch
@@ -142,8 +142,8 @@ class TestMultiStrategyDetector:
         
         detector = MultiStrategyDetector()
         
-        patch = Mock()
-        patch.commit_hash = "abc123"
+        mock_patch = Mock()
+        mock_patch.commit_hash = "abc123"
         
         target = Mock()
         target.repo.is_commit_exists.return_value = True
@@ -160,9 +160,9 @@ class TestMultiStrategyDetector:
         
         detector = MultiStrategyDetector()
         
-        patch = Mock()
-        patch.commit_hash = "abc123"
-        patch.files_changed = [Mock(filename="net.c", new_file_hash="hash123")]
+        mock_patch = Mock()
+        mock_patch.commit_hash = "abc123"
+        mock_patch.files_changed = [Mock(filename="net.c", new_file_hash="hash123")]
         
         target = Mock()
         # commit hash 检测失败
@@ -184,10 +184,10 @@ class TestMultiStrategyDetector:
         
         detector = MultiStrategyDetector()
         
-        patch = Mock()
-        patch.commit_hash = "abc123"
-        patch.files_changed = []
-        patch.patch_content = "fix code here"
+        mock_patch = Mock()
+        mock_patch.commit_hash = "abc123"
+        mock_patch.files_changed = []
+        mock_patch.patch_content = "fix code here"
         
         target = Mock()
         target.repo.is_commit_exists.return_value = False
@@ -195,7 +195,7 @@ class TestMultiStrategyDetector:
         with patch.object(detector.content_matcher, 'match') as mock_match:
             mock_match.return_value = {"status": PatchStatusEnum.APPLIED, "confidence": 0.75}
             
-            result = detector.detect(patch, target)
+            result = detector.detect(mock_patch, target)
             
             # 降级到内容匹配
             assert result.detection_method == DetectionMethod.CONTENT
@@ -290,9 +290,9 @@ class TestRevertDetection:
         
         detector = RevertDetector()
         
-        patch = Mock()
-        patch.commit_hash = "abc123"
-        patch.subject = "Fix vulnerability"
+        mock_patch = Mock()
+        mock_patch.commit_hash = "abc123"
+        mock_patch.subject = "Fix vulnerability"
         
         target = Mock()
         # 模拟找到 revert commit
@@ -315,7 +315,7 @@ class TestErrorHandling:
         
         detector = PatchDetector()
         
-        patch = Mock()
+        mock_patch = Mock()
         target = Mock()
         target.repo = None  # 没有仓库
         

@@ -47,8 +47,17 @@ def test_db(temp_dir):
 @pytest.fixture
 def db_session(test_db):
     """创建数据库会话"""
-    with test_db.session() as session:
+    session = test_db.get_session()
+    try:
         yield session
+        if session.is_active:
+            session.commit()
+    except Exception:
+        if session.is_active:
+            session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 @pytest.fixture

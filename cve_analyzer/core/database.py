@@ -56,6 +56,11 @@ class Database:
         """删除所有表 (危险操作!)"""
         Base.metadata.drop_all(bind=self.engine)
     
+    def close(self) -> None:
+        """关闭数据库连接"""
+        if self.engine:
+            self.engine.dispose()
+    
     @contextmanager
     def session(self) -> Generator[Session, None, None]:
         """
