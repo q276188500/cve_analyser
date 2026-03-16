@@ -25,29 +25,29 @@ class LLMResponse:
 
 class LLMProvider(ABC):
     """LLM 提供商基类"""
-    
+
     def __init__(self, model: Optional[str] = None):
         self.model = model or self._default_model()
-    
+
     @abstractmethod
     def _default_model(self) -> str:
         """返回默认模型名称"""
         pass
-    
+
     @abstractmethod
     async def chat(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
         """
         对话接口
-        
+
         Args:
             messages: [{"role": "system"/"user"/"assistant", "content": "..."}]
             **kwargs: 额外参数 (temperature, max_tokens 等)
-        
+
         Returns:
             LLMResponse 对象
         """
         pass
-    
+
     @abstractmethod
     def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """估算成本 (USD)"""
@@ -56,26 +56,26 @@ class LLMProvider(ABC):
 
 class OpenAIProvider(LLMProvider):
     """OpenAI GPT 接口"""
-    
+
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OpenAI API key required. Set OPENAI_API_KEY env var.")
-        
+
         super().__init__(model)
-        
+
         try:
             import openai
             self.client = openai.AsyncOpenAI(api_key=self.api_key)
         except ImportError:
             raise ImportError("OpenAI package not installed. Run: pip install openai")
-    
+
     def _default_model(self) -> str:
         return "gpt-4"
-    
+
     async def chat(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
         import openai
-        
+
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
@@ -83,11 +83,11 @@ class OpenAIProvider(LLMProvider):
                 temperature=kwargs.get("temperature", 0.3),
                 max_tokens=kwargs.get("max_tokens", 4000),
             )
-            
+
             content = response.choices[0].message.content
             tokens_in = response.usage.prompt_tokens
             tokens_out = response.usage.completion_tokens
-            
+
             return LLMResponse(
                 content=content,
                 model=self.model,
@@ -97,7 +97,7 @@ class OpenAIProvider(LLMProvider):
             )
         except openai.APIError as e:
             raise RuntimeError(f"OpenAI API error: {e}")
-    
+
     def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """估算成本 (USD) - GPT-4 价格"""
         prices = {
@@ -111,28 +111,28 @@ class OpenAIProvider(LLMProvider):
 
 class ClaudeProvider(LLMProvider):
     """Anthropic Claude 接口"""
-    
+
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("Anthropic API key required. Set ANTHROPIC_API_KEY env var.")
-        
+
         super().__init__(model)
-        
+
         try:
             import anthropic
             self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
         except ImportError:
             raise ImportError("Anthropic package not installed. Run: pip install anthropic")
-    
+
     def _default_model(self) -> str:
         return "claude-3-opus-20240229"
-    
+
     async def chat(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
         # 转换消息格式为 Claude 格式
         system_msg = ""
         user_msgs = []
-        
+
         for msg in messages:
             if msg["role"] == "system":
                 system_msg = msg["content"]
@@ -140,7 +140,7 @@ class ClaudeProvider(LLMProvider):
                 user_msgs.append({"role": "user", "content": msg["content"]})
             elif msg["role"] == "assistant":
                 user_msgs.append({"role": "assistant", "content": msg["content"]})
-        
+
         try:
             response = await self.client.messages.create(
                 model=self.model,
@@ -149,11 +149,11 @@ class ClaudeProvider(LLMProvider):
                 system=system_msg,
                 messages=user_msgs,
             )
-            
+
             content = response.content[0].text
             tokens_in = response.usage.input_tokens
             tokens_out = response.usage.output_tokens
-            
+
             return LLMResponse(
                 content=content,
                 model=self.model,
@@ -163,7 +163,7 @@ class ClaudeProvider(LLMProvider):
             )
         except Exception as e:
             raise RuntimeError(f"Claude API error: {e}")
-    
+
     def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """估算成本 (USD) - Claude 3 Opus 价格"""
         prices = {
@@ -175,91 +175,28 @@ class ClaudeProvider(LLMProvider):
         return (input_tokens / 1000 * input_price) + (output_tokens / 1000 * output_price)
 
 
-class OllamaProvider(LLMProvider):
-    """Ollama 本地模型接口"""
-    
-    def __init__(self, host: str = "http://localhost:11434", model: str = "codellama"):
-        import aiohttp
-        self.host = host
-        self.client = aiohttp.ClientSession()
-        super().__init__(model)
-    
-    def _default_model(self) -> str:
-        return "codellama"
-    
-    async def chat(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
-        import aiohttp
-        
-        # 转换消息格式
-        ollama_messages = []
-        for msg in messages:
-            if msg["role"] == "system":
-                ollama_messages.append({"role": "system", "content": msg["content"]})
-            else:
-                ollama_messages.append({"role": "user", "content": msg["content"]})
-        
-        payload = {
-            "model": self.model,
-            "messages": ollama_messages,
-            "stream": False,
-            "options": {
-                "temperature": kwargs.get("temperature", 0.3),
-                "num_predict": kwargs.get("max_tokens", 4000),
-            }
-        }
-        
-        try:
-            async with self.client.post(
-                f"{self.host}/api/chat",
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=120)
-            ) as response:
-                if response.status != 200:
-                    error = await response.text()
-                    raise RuntimeError(f"Ollama API error: {error}")
-                
-                result = await response.json()
-                
-                content = result.get("message", {}).get("content", "")
-                tokens_used = result.get("eval_count", 0) + result.get("prompt_eval_count", 0)
-                
-                return LLMResponse(
-                    content=content,
-                    model=self.model,
-                    tokens_used=tokens_used,
-                    cost_usd=0.0,  # 本地模型无成本
-                    metadata={}
-                )
-        except aiohttp.ClientError as e:
-            raise RuntimeError(f"Ollama 连接错误: {e}. 请确保 Ollama 已启动: ollama serve")
-    
-    def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
-        """本地模型无成本"""
-        return 0.0
-
-
 class LLMFactory:
     """LLM 提供商工厂"""
-    
+
     @staticmethod
     def create(provider: str, **kwargs) -> LLMProvider:
         """
         创建 LLM 提供商实例
-        
+
         Args:
             provider: "openai", "claude", "ollama"
             **kwargs: 传递给提供商构造函数的参数
-        
+
         Returns:
             LLMProvider 实例
         """
         providers = {
             "openai": OpenAIProvider,
             "claude": ClaudeProvider,
-            "ollama": OllamaProvider,
+            
         }
-        
+
         if provider not in providers:
             raise ValueError(f"Unknown provider: {provider}. Available: {list(providers.keys())}")
-        
+
         return providers[provider](**kwargs)
