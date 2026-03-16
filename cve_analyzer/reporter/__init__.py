@@ -1,83 +1,32 @@
 """
-报告生成模块
+报告系统 - CVE 分析报告生成
+
+支持格式:
+- JSON: 机器可读，完整数据
+- Markdown: 人工可读，适合文档
+- HTML: 网页展示，带样式
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List
+from cve_analyzer.reporter.base import ReportGenerator, JSONReportGenerator
+from cve_analyzer.reporter.markdown import MarkdownReportGenerator
+from cve_analyzer.reporter.html import HTMLReportGenerator
+from cve_analyzer.reporter.models import (
+    CVEReport, SummaryReport, ReportFormat,
+    PatchInfo, VersionImpactInfo, KconfigInfo,
+    PatchHistoryInfo, DetectionStatusInfo
+)
 
-from cve_analyzer.core.models import CVE, Patch
-
-
-class ReportFormat(str, Enum):
-    """报告格式枚举"""
-    JSON = "json"
-    MARKDOWN = "markdown"
-    HTML = "html"
-    CSV = "csv"
-
-
-@dataclass
-class Statistics:
-    """统计信息"""
-    total_cves: int = 0
-    critical_count: int = 0
-    high_count: int = 0
-    medium_count: int = 0
-    low_count: int = 0
-    patched_count: int = 0
-    pending_count: int = 0
-
-
-@dataclass
-class ReportData:
-    """报告数据"""
-    title: str
-    generated_at: str
-    cves: List[CVE]
-    patches: List[Patch]
-    statistics: Statistics
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class ReporterOptions:
-    """报告选项"""
-    include_patches: bool = True
-    include_diffs: bool = False
-    include_history: bool = False
-    include_kconfig: bool = False
-    template_path: Optional[str] = None
-
-
-class Reporter(ABC):
-    """报告生成器基类"""
-    
-    @abstractmethod
-    def generate(self, data: ReportData, format: ReportFormat) -> str:
-        """
-        生成报告
-        
-        Args:
-            data: 报告数据
-            format: 报告格式
-        
-        Returns:
-            报告内容或文件路径
-        """
-        pass
-    
-    @abstractmethod
-    def generate_batch(self, data: List[ReportData], format: ReportFormat) -> str:
-        """
-        批量生成报告
-        
-        Args:
-            data: 报告数据列表
-            format: 报告格式
-        
-        Returns:
-            报告内容或文件路径
-        """
-        pass
+__all__ = [
+    'ReportGenerator',
+    'JSONReportGenerator',
+    'MarkdownReportGenerator',
+    'HTMLReportGenerator',
+    'CVEReport',
+    'SummaryReport',
+    'ReportFormat',
+    'PatchInfo',
+    'VersionImpactInfo',
+    'KconfigInfo',
+    'PatchHistoryInfo',
+    'DetectionStatusInfo',
+]

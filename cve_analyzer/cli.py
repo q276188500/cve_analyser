@@ -683,6 +683,94 @@ def query(
 
 
 # ============================================
+# report 命令
+# ============================================
+
+@cli.command()
+@click.argument("cve_id", required=False)
+@click.option("--format", "fmt", default="markdown", type=click.Choice(["json", "markdown", "html"]), help="报告格式")
+@click.option("--output", "-o", default=".", help="输出目录")
+@click.option("--cve-list", type=click.Path(exists=True), help="CVE ID 列表文件")
+@click.option("--summary", is_flag=True, help="生成摘要报告")
+@click.pass_context
+def report(
+    ctx: click.Context,
+    cve_id: Optional[str],
+    fmt: str,
+    output: str,
+    cve_list: Optional[str],
+    summary: bool,
+):
+    """
+    生成 CVE 分析报告
+    
+    支持 JSON/Markdown/HTML 三种格式
+    
+    示例:
+        cve-analyzer report CVE-2024-XXXX --format=html --output=./reports
+        cve-analyzer report --summary --format=markdown
+        cve-analyzer report --cve-list=cves.txt --format=json
+    """
+    from cve_analyzer.reporter.service import ReportService
+    from cve_analyzer.reporter import JSONReportGenerator, MarkdownReportGenerator, HTMLReportGenerator
+    
+    # 选择生成器
+    generators = {
+        "json": JSONReportGenerator,
+        "markdown": MarkdownReportGenerator,
+        "html": HTMLReportGenerator,
+    }
+    generator_class = generators[fmt]
+    generator = generator_class(output_dir=output)
+    
+    # 创建报告服务
+    service = ReportService()
+    
+    if summary:
+        # 生成摘要报告
+        with console.status("[bold green]正在生成摘要报告..."):
+            cve_ids = None
+            if cve_list:
+                with open(cve_list) as f:
+                    cve_ids = [line.strip() for line in f if line.strip()]
+            
+            report_data = service.generate_summary_report(cve_ids)
+            output_path = generator.generate_summary(report_data)
+        
+        console.print(f"[green]✓[/green] 摘要报告已生成: [cyan]{output_path}[/cyan]")
+    
+    elif cve_id:
+        # 生成单个 CVE 报告
+        with console.status(f"[bold green]正在生成 {cve_id} 报告..."):
+            report_data = service.generate_cve_report(cve_id)
+            if not report_data:
+                console.print(f"[red]✗[/red] CVE 不存在: {cve_id}")
+                return
+            
+            output_path = generator.generate(report_data)
+        
+        console.print(f"[green]✓[/green] 报告已生成: [cyan]{output_path}[/cyan]")
+    
+    elif cve_list:
+        # 批量生成报告
+        with open(cve_list) as f:
+            cve_ids = [line.strip() for line in f if line.strip()]
+        
+        success_count = 0
+        for cid in cve_ids:
+            with console.status(f"[bold green]正在生成 {cid} 报告..."):
+                report_data = service.generate_cve_report(cid)
+                if report_data:
+                    generator.generate(report_data)
+                    success_count += 1
+        
+        console.print(f"[green]✓[/green] 成功生成 {success_count}/{len(cve_ids)} 个报告到 [cyan]{output}[/cyan]")
+    
+    else:
+        console.print("[yellow]请指定 CVE ID 或使用 --summary/--cve-list 选项[/yellow]")
+
+
+# ============================================
 # version 命令
 # ============================================
 
