@@ -3,6 +3,8 @@ CLI 命令行接口
 使用 Click 框架
 """
 
+import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -864,6 +866,109 @@ def report(
     
     else:
         console.print("[yellow]请指定 CVE ID 或使用 --summary/--cve-list 选项[/yellow]")
+
+
+# ============================================
+# llm-analyze 命令
+# ============================================
+
+@cli.command("llm-analyze")
+@click.argument("cve_id")
+@click.option("--provider", default="openai", type=click.Choice(["openai", "claude"]), help="LLM 提供商")
+@click.option("--model", help="模型名称 (如 gpt-4, claude-3-opus)")
+@click.option("--output", "-o", type=click.Choice(["json", "markdown"]), default="markdown", help="输出格式")
+@click.pass_context
+async def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], output: str):
+    """
+    使用大模型分析 CVE
+    
+    利用 LLM 提供更深入的漏洞分析和修复建议。
+    需要设置 API Key 环境变量 (OPENAI_API_KEY 或 ANTHROPIC_API_KEY)。
+    
+    示例:
+        cve-analyzer llm-analyze CVE-2024-1234
+        cve-analyzer llm-analyze CVE-2024-1234 --provider=claude --model=claude-3-opus
+        cve-analyzer llm-analyze CVE-2024-1234 --output=json
+    """
+    import asyncio
+    
+    try:
+        from cve_analyzer.llm import LLMFactory, LLMVulnerabilityAnalyzer
+    except ImportError as e:
+        console.print(f"[red]错误: {e}[/red]")
+        console.print("[yellow]请安装依赖: pip install openai anthropic[/yellow]")
+        return
+    
+    # 检查 API Key
+    if provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        console.print("[red]错误: 未设置 OPENAI_API_KEY 环境变量[/red]")
+        return
+    if provider == "claude" and not os.getenv("ANTHROPIC_API_KEY"):
+        console.print("[red]错误: 未设置 ANTHROPIC_API_KEY 环境变量[/red]")
+        return
+    
+    # 获取 CVE 数据
+    from cve_analyzer.core.database import Database
+    from cve_analyzer.core.models import CVE
+    
+    db = Database()
+    with db.session() as session:
+        cve = session.query(CVE).filter_by(id=cve_id).first()
+        if not cve:
+            console.print(f"[red]错误: CVE {cve_id} 不存在[/red]")
+            return
+    
+    # 初始化 LLM
+    try:
+        llm_provider = LLMFactory.create(provider, model=model)
+        analyzer = LLMVulnerabilityAnalyzer(llm_provider)
+    except Exception as e:
+        console.print(f"[red]LLM 初始化失败: {e}[/red]")
+        return
+    
+    # 执行分析
+    with console.status(f"[bold green]正在使用 {provider} 分析 {cve_id}..."):
+        try:
+            # 使用 asyncio 运行异步函数
+            analysis = asyncio.run(analyzer.analyze_cve(cve))
+        except Exception as e:
+            console.print(f"[red]分析失败: {e}[/red]")
+            return
+    
+    # 显示结果
+    console.print()
+    console.print(Panel(
+        f"[bold cyan]{cve_id}[/bold cyan] 智能分析结果\n"
+        f"模型: [dim]{analysis['_metadata']['model']}[/dim] | "
+        f"Tokens: [dim]{analysis['_metadata']['tokens_used']}[/dim] | "
+        f"成本: [dim]${analysis['_metadata']['cost_usd']:.4f}[/dim]",
+        title="🤖 LLM 分析",
+        border_style="green"
+    ))
+    
+    if output == "json":
+        import json
+        console.print(json.dumps(analysis, indent=2, ensure_ascii=False))
+    else:
+        # Markdown 格式输出
+        console.print(f"\n[bold]漏洞摘要[/bold]\n{analysis.get('summary', 'N/A')}\n")
+        
+        if 'attack_scenario' in analysis:
+            console.print(f"[bold]攻击场景[/bold]\n{analysis['attack_scenario']}\n")
+        
+        if 'affected_components' in analysis:
+            console.print("[bold]受影响组件[/bold]")
+            for comp in analysis['affected_components']:
+                console.print(f"  • {comp}")
+            console.print()
+        
+        if 'exploit_difficulty' in analysis:
+            diff = analysis['exploit_difficulty']
+            color = {"LOW": "green", "MEDIUM": "yellow", "HIGH": "red"}.get(diff, "white")
+            console.print(f"[bold]利用难度:[/bold] [{color}]{diff}[/{color}]\n")
+        
+        if 'mitigation' in analysis:
+            console.print(f"[bold]缓解措施[/bold]\n{analysis['mitigation']}\n")
 
 
 # ============================================
