@@ -651,10 +651,11 @@ def report(ctx: click.Context, fmt: str, output: Optional[str]):
 # ============================================
 
 @cli.command()
-@click.option("--severity", type=click.Choice(["CRITICAL", "HIGH", "MEDIUM", "LOW"]))
+@click.option("--severity", type=click.Choice(["critical", "high", "medium", "low"]))
 @click.option("--since", help="起始日期 (YYYY-MM-DD)")
 @click.option("--keyword", help="关键词搜索")
 @click.option("--limit", default=100, help="返回数量限制")
+@click.option("--format", "fmt", default="table", type=click.Choice(["table", "json", "csv"]), help="输出格式")
 @click.pass_context
 def query(
     ctx: click.Context,
@@ -662,24 +663,119 @@ def query(
     since: Optional[str],
     keyword: Optional[str],
     limit: int,
+    fmt: str,
 ):
     """
     查询漏洞数据库
     
     按条件查询本地 CVE 数据库
+    
+    示例:
+        cve-analyzer query --severity=high --limit=50
+        cve-analyzer query --since=2026-01-01 --keyword="use-after-free"
+        cve-analyzer query --severity=critical --format=json
     """
-    console.print("[yellow]查询漏洞 - 待实现[/yellow]")
+    from cve_analyzer.core.database import Database
+    from cve_analyzer.core.models import CVE
+    from sqlalchemy import or_
     
-    table = Table(title="查询参数")
-    table.add_column("参数", style="cyan")
-    table.add_column("值", style="magenta")
+    db = Database()
     
-    table.add_row("severity", severity or "-")
-    table.add_row("since", since or "-")
-    table.add_row("keyword", keyword or "-")
-    table.add_row("limit", str(limit))
+    with console.status("[bold green]正在查询数据库..."):
+        with db.session() as session:
+            query = session.query(CVE)
+            
+            # 应用过滤条件
+            if severity:
+                query = query.filter(CVE.severity == severity.upper())
+            
+            if since:
+                from datetime import datetime
+                try:
+                    since_date = datetime.strptime(since, "%Y-%m-%d")
+                    query = query.filter(CVE.published_date >= since_date)
+                except ValueError:
+                    console.print("[red]错误: since 日期格式应为 YYYY-MM-DD[/red]")
+                    return
+            
+            if keyword:
+                search = f"%{keyword}%"
+                query = query.filter(
+                    or_(
+                        CVE.id.contains(keyword),
+                        CVE.description.contains(keyword)
+                    )
+                )
+            
+            # 排序和限制
+            query = query.order_by(CVE.published_date.desc()).limit(limit)
+            
+            # 在会话内提取所有数据
+            cves_data = []
+            for c in query.all():
+                cves_data.append({
+                    'id': c.id,
+                    'severity': c.severity,
+                    'cvss_score': c.cvss_score,
+                    'published_date': c.published_date,
+                    'description': c.description,
+                })
     
-    console.print(table)
+    # 输出结果
+    if not cves_data:
+        console.print("[yellow]未找到匹配的 CVE[/yellow]")
+        return
+    
+    if fmt == "json":
+        import json
+        data = [{
+            "id": c['id'],
+            "description": c['description'],
+            "severity": c['severity'],
+            "cvss_score": c['cvss_score'],
+            "published_date": c['published_date'].isoformat() if c['published_date'] else None,
+        } for c in cves_data]
+        console.print(json.dumps(data, indent=2, ensure_ascii=False))
+    
+    elif fmt == "csv":
+        console.print("CVE_ID,Severity,CVSS,Published_Date,Description")
+        for c in cves_data:
+            desc = (c['description'] or "").replace(",", ";").replace("\n", " ")[:100]
+            pub_date = c['published_date'].strftime("%Y-%m-%d") if c['published_date'] else ""
+            console.print(f"{c['id']},{c['severity'] or 'UNKNOWN'},{c['cvss_score'] or ''},{pub_date},{desc}")
+    
+    else:  # table
+        from rich.table import Table
+        table = Table(title=f"查询结果 (共 {len(cves_data)} 个)")
+        table.add_column("CVE ID", style="cyan", width=18)
+        table.add_column("严重程度", width=10)
+        table.add_column("CVSS", width=6)
+        table.add_column("发布日期", width=12)
+        table.add_column("描述")
+        
+        severity_colors = {
+            "CRITICAL": "red",
+            "HIGH": "orange3",
+            "MEDIUM": "yellow",
+            "LOW": "green",
+        }
+        
+        for c in cves_data:
+            sev = (c['severity'] or "").upper()
+            color = severity_colors.get(sev, "white")
+            desc = c['description'][:80] + "..." if c['description'] and len(c['description']) > 80 else (c['description'] or "")
+            pub_date = c['published_date'].strftime("%Y-%m-%d") if c['published_date'] else "-"
+            
+            table.add_row(
+                c['id'],
+                f"[{color}]{sev or 'UNKNOWN'}[/{color}]",
+                str(c['cvss_score']) if c['cvss_score'] else "-",
+                pub_date,
+                desc
+            )
+        
+        console.print(table)
+        console.print(f"\n[dim]提示: 使用 --format=json 或 --format=csv 导出数据[/dim]")
 
 
 # ============================================
