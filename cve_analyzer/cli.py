@@ -972,6 +972,116 @@ async def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], out
 
 
 # ============================================
+# llm-batch-analyze 命令
+# ============================================
+
+@cli.command("llm-batch-analyze")
+@click.option("--cve-list", required=True, type=click.Path(exists=True), help="CVE ID 列表文件")
+@click.option("--provider", default="openai", type=click.Choice(["openai", "claude"]), help="LLM 提供商")
+@click.option("--model", help="模型名称")
+@click.option("--max", default=10, help="最大分析数量 (控制成本)")
+@click.pass_context
+async def llm_batch_analyze(ctx, cve_list: str, provider: str, model: Optional[str], max: int):
+    """
+    批量使用大模型分析 CVE
+    
+    从文件读取 CVE ID 列表，批量进行分析。
+    需要设置 API Key 环境变量。
+    
+    示例:
+        cve-analyzer llm-batch-analyze --cve-list=cves.txt
+        cve-analyzer llm-batch-analyze --cve-list=cves.txt --max=5 --provider=claude
+    """
+    import asyncio
+    
+    try:
+        from cve_analyzer.llm import LLMFactory, LLMVulnerabilityAnalyzer
+    except ImportError as e:
+        console.print(f"[red]错误: {e}[/red]")
+        console.print("[yellow]请安装依赖: pip install openai anthropic[/yellow]")
+        return
+    
+    # 检查 API Key
+    if provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        console.print("[red]错误: 未设置 OPENAI_API_KEY 环境变量[/red]")
+        return
+    if provider == "claude" and not os.getenv("ANTHROPIC_API_KEY"):
+        console.print("[red]错误: 未设置 ANTHROPIC_API_KEY 环境变量[/red]")
+        return
+    
+    # 读取 CVE 列表
+    with open(cve_list) as f:
+        cve_ids = [line.strip() for line in f if line.strip()]
+    
+    if len(cve_ids) > max:
+        console.print(f"[yellow]注意: 只分析前 {max} 个 CVE（控制成本）[/yellow]")
+        cve_ids = cve_ids[:max]
+    
+    console.print(f"[cyan]准备分析 {len(cve_ids)} 个 CVE...[/cyan]\n")
+    
+    # 获取 CVE 数据
+    from cve_analyzer.core.database import Database
+    from cve_analyzer.core.models import CVE
+    
+    db = Database()
+    cve_data = []
+    
+    with db.session() as session:
+        for cve_id in cve_ids:
+            cve = session.query(CVE).filter_by(id=cve_id).first()
+            if cve:
+                cve_data.append((cve_id, cve))
+    
+    if not cve_data:
+        console.print("[red]错误: 未找到匹配的 CVE[/red]")
+        return
+    
+    # 初始化 LLM
+    try:
+        llm_provider = LLMFactory.create(provider, model=model)
+        analyzer = LLMVulnerabilityAnalyzer(llm_provider)
+    except Exception as e:
+        console.print(f"[red]LLM 初始化失败: {e}[/red]")
+        return
+    
+    # 批量分析
+    results = []
+    total_cost = 0.0
+    
+    for i, (cve_id, cve) in enumerate(cve_data, 1):
+        with console.status(f"[bold green][{i}/{len(cve_data)}] 正在分析 {cve_id}..."):
+            try:
+                analysis = asyncio.run(analyzer.analyze_cve(cve))
+                results.append((cve_id, analysis))
+                total_cost += analysis['_metadata']['cost_usd']
+            except Exception as e:
+                console.print(f"[red]分析 {cve_id} 失败: {e}[/red]")
+    
+    # 显示摘要
+    console.print(Panel(
+        f"[bold]批量分析完成[/bold]\n"
+        f"成功: [green]{len(results)}/{len(cve_data)}[/green]\n"
+        f"总成本: [yellow]${total_cost:.4f}[/yellow]",
+        title="🤖 批量分析结果",
+        border_style="green"
+    ))
+    
+    # 显示简要结果
+    table = Table(title="分析结果摘要")
+    table.add_column("CVE ID", style="cyan")
+    table.add_column("摘要", width=60)
+    
+    for cve_id, analysis in results:
+        summary = analysis.get('summary', 'N/A')
+        if len(summary) > 55:
+            summary = summary[:55] + '...'
+        table.add_row(cve_id, summary)
+    
+    console.print(table)
+    console.print(f"\n[dim]提示: 使用单条分析查看详情: cve-analyzer llm-analyze <CVE-ID>[/dim]")
+
+
+# ============================================
 # version 命令
 # ============================================
 
