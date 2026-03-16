@@ -874,7 +874,7 @@ def report(
 
 @cli.command("llm-analyze")
 @click.argument("cve_id")
-@click.option("--provider", default="openai", type=click.Choice(["openai", "claude"]), help="LLM 提供商")
+@click.option("--provider", default="openai", type=click.Choice(["openai", "claude", "ollama"]), help="LLM 提供商")
 @click.option("--model", help="模型名称 (如 gpt-4, claude-3-opus)")
 @click.option("--output", "-o", type=click.Choice(["json", "markdown"]), default="markdown", help="输出格式")
 @click.pass_context
@@ -977,7 +977,7 @@ async def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], out
 
 @cli.command("llm-batch-analyze")
 @click.option("--cve-list", required=True, type=click.Path(exists=True), help="CVE ID 列表文件")
-@click.option("--provider", default="openai", type=click.Choice(["openai", "claude"]), help="LLM 提供商")
+@click.option("--provider", default="openai", type=click.Choice(["openai", "claude", "ollama"]), help="LLM 提供商")
 @click.option("--model", help="模型名称")
 @click.option("--max", default=10, help="最大分析数量 (控制成本)")
 @click.pass_context

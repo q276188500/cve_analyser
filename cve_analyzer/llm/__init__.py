@@ -9,6 +9,7 @@ from cve_analyzer.llm.base import (
     LLMResponse,
     OpenAIProvider,
     ClaudeProvider,
+    OllamaProvider,
     LLMFactory,
 )
 
@@ -17,12 +18,16 @@ from cve_analyzer.llm.analyzer import (
     LLMReportGenerator,
 )
 
+from cve_analyzer.llm.cache import LLMCache
+
 __all__ = [
     'LLMProvider',
     'LLMResponse',
     'OpenAIProvider',
     'ClaudeProvider',
+    'OllamaProvider',
     'LLMFactory',
     'LLMVulnerabilityAnalyzer',
     'LLMReportGenerator',
+    'LLMCache',
 ]

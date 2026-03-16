@@ -175,6 +175,69 @@ class ClaudeProvider(LLMProvider):
         return (input_tokens / 1000 * input_price) + (output_tokens / 1000 * output_price)
 
 
+class OllamaProvider(LLMProvider):
+    """Ollama 本地模型接口"""
+    
+    def __init__(self, host: str = "http://localhost:11434", model: str = "codellama"):
+        import aiohttp
+        self.host = host
+        self.client = aiohttp.ClientSession()
+        super().__init__(model)
+    
+    def _default_model(self) -> str:
+        return "codellama"
+    
+    async def chat(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
+        import aiohttp
+        
+        # 转换消息格式
+        ollama_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                ollama_messages.append({"role": "system", "content": msg["content"]})
+            else:
+                ollama_messages.append({"role": "user", "content": msg["content"]})
+        
+        payload = {
+            "model": self.model,
+            "messages": ollama_messages,
+            "stream": False,
+            "options": {
+                "temperature": kwargs.get("temperature", 0.3),
+                "num_predict": kwargs.get("max_tokens", 4000),
+            }
+        }
+        
+        try:
+            async with self.client.post(
+                f"{self.host}/api/chat",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=120)
+            ) as response:
+                if response.status != 200:
+                    error = await response.text()
+                    raise RuntimeError(f"Ollama API error: {error}")
+                
+                result = await response.json()
+                
+                content = result.get("message", {}).get("content", "")
+                tokens_used = result.get("eval_count", 0) + result.get("prompt_eval_count", 0)
+                
+                return LLMResponse(
+                    content=content,
+                    model=self.model,
+                    tokens_used=tokens_used,
+                    cost_usd=0.0,  # 本地模型无成本
+                    metadata={}
+                )
+        except aiohttp.ClientError as e:
+            raise RuntimeError(f"Ollama 连接错误: {e}. 请确保 Ollama 已启动: ollama serve")
+    
+    def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
+        """本地模型无成本"""
+        return 0.0
+
+
 class LLMFactory:
     """LLM 提供商工厂"""
     
@@ -184,7 +247,7 @@ class LLMFactory:
         创建 LLM 提供商实例
         
         Args:
-            provider: "openai", "claude"
+            provider: "openai", "claude", "ollama"
             **kwargs: 传递给提供商构造函数的参数
         
         Returns:
@@ -193,6 +256,7 @@ class LLMFactory:
         providers = {
             "openai": OpenAIProvider,
             "claude": ClaudeProvider,
+            "ollama": OllamaProvider,
         }
         
         if provider not in providers:
