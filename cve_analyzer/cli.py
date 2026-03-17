@@ -781,6 +781,171 @@ def kconfig(
 
 
 # ============================================
+# check-fix 命令 - 使用 LLM 检查代码是否已修复
+# ============================================
+
+@cli.command("check-fix")
+@click.argument("cve-id")
+@click.option("--kernel-path", type=click.Path(exists=True), help="内核源码路径")
+@click.option("--provider", default="minimax", type=click.Choice(["openai", "claude", "minimax"]), help="LLM 提供商")
+@click.option("--model", help="模型名称")
+@click.pass_context
+def check_fix(ctx: click.Context, cve_id: str, kernel_path: Optional[str], provider: str, model: Optional[str]):
+    """
+    检查 CVE 补丁是否已修复
+    
+    使用 LLM 分析内核代码来判断漏洞是否已修复。
+    需要指定内核源码路径或确保可以远程查询。
+    
+    示例:
+        cve-analyzer check-fix CVE-2025-68817 --kernel-path /path/to/linux
+        cve-analyzer check-fix CVE-2025-68817 --provider minimax
+    """
+    import asyncio
+    
+    from cve_analyzer.core.database import get_db
+    from cve_analyzer.core.models import CVE, Patch
+    
+    # 检查 API Key
+    if provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        console.print("[red]错误: 未设置 OPENAI_API_KEY[/red]")
+        return
+    if provider == "claude" and not os.getenv("ANTHROPIC_API_KEY"):
+        console.print("[red]错误: 未设置 ANTHROPIC_API_KEY[/red]")
+        return
+    if provider == "minimax" and not os.getenv("MINIMAX_API_KEY"):
+        console.print("[red]错误: 未设置 MINIMAX_API_KEY[/red]")
+        return
+    
+    db = get_db()
+    
+    with db.session() as session:
+        # 获取 CVE 和补丁
+        cve = session.query(CVE).filter(CVE.id == cve_id.upper()).first()
+        
+        if not cve:
+            console.print(f"[red]未找到 CVE: {cve_id}[/red]")
+            return
+        
+        patches = session.query(Patch).filter(Patch.cve_id == cve.id).all()
+        
+        if not patches:
+            console.print(f"[yellow]该 CVE 暂无补丁信息[/yellow]")
+            return
+        
+        console.print("\n[bold cyan]═══════════════════════════════════════[/bold cyan]")
+        console.print(f"[bold]  检查修复状态: {cve.id}[/bold]")
+        console.print("[bold cyan]═══════════════════════════════════════[/bold cyan]")
+        
+        # 获取补丁信息
+        patch_info = []
+        for patch in patches[:3]:  # 取前3个
+            patch_info.append({
+                'commit': patch.commit_hash,
+                'short': patch.commit_hash_short,
+                'subject': patch.subject,
+            })
+        
+        console.print(f"\n[dim]找到 {len(patches)} 个补丁，取前 3 个分析[/dim]")
+    
+    # 尝试获取内核代码
+    code_context = ""
+    
+    if kernel_path:
+        import subprocess
+        console.print(f"\n[cyan]查询内核源码: {kernel_path}[/cyan]")
+        
+        for patch in patch_info[:1]:  # 只查询第一个
+            commit = patch['commit']
+            try:
+                # 尝试获取 commit 内容
+                result = subprocess.run(
+                    ['git', 'show', commit],
+                    cwd=kernel_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if result.returncode == 0:
+                    code_context = f"""
+补丁 commit: {commit}
+补丁描述: {patch['subject']}
+
+代码变更:
+{result.stdout[:3000]}
+"""
+                else:
+                    # 尝试只获取 commit 元信息
+                    result = subprocess.run(
+                        ['git', 'log', '-1', '--format=%H%n%s%n%b', commit],
+                        cwd=kernel_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                    if result.returncode == 0:
+                        code_context = f"""
+补丁 commit: {commit}
+补丁描述: {patch['subject']}
+
+commit 信息:
+{result.stdout[:1000]}
+"""
+            except Exception as e:
+                console.print(f"[yellow]查询内核代码失败: {e}[/yellow]")
+    
+    if not code_context:
+        # 没有内核源码，使用补丁 URL
+        patch_urls = [f"https://git.kernel.org/stable/c/{p['commit']}" for p in patch_info[:3]]
+        code_context = f"""
+CVE: {cve_id}
+补丁列表:
+{chr(10).join(patch_urls)}
+
+请基于上述补丁信息分析该漏洞是否已在主线/稳定版内核中修复。
+"""
+    
+    # 使用 LLM 分析
+    console.print("\n[cyan]正在使用 LLM 分析修复状态...[/cyan]")
+    
+    try:
+        from cve_analyzer.llm import LLMFactory
+        
+        llm = LLMFactory.create(provider, model=model)
+        
+        system_prompt = """你是一个专业的 Linux 内核安全工程师。
+请分析给定的 CVE 补丁，判断该漏洞是否已在内核代码中修复。
+
+分析维度：
+1. 补丁是否已合并到主线内核
+2. 补丁是否已 backport 到稳定版
+3. 修复是否完整，还是有后续更新
+
+请用中文输出结构化分析结果：
+- 修复状态: 已修复/未修复/不确定
+- 风险评估: 高/中/低
+- 分析说明: 详细理由
+"""
+        
+        async def analyze():
+            response = await llm.chat([
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": code_context}
+            ])
+            return response
+        
+        result = asyncio.run(analyze())
+        
+        console.print("\n[bold green]═══════════════════════════════════════[/bold green]")
+        console.print("[bold]LLM 分析结果:[/bold]")
+        console.print("[bold green]═══════════════════════════════════════[/bold green]")
+        console.print(f"\n{result.content}")
+        
+    except Exception as e:
+        console.print(f"[red]LLM 分析失败: {e}[/red]")
+
+
+# ============================================
 # patch-history 命令
 # ============================================
 
