@@ -216,7 +216,10 @@ def infer_from_patch_commit(commit_hash: str, kernel_path: str) -> List[str]:
     except Exception:
         pass
     
-# 测试
+    return list(configs)
+
+
+def generate_rule_from_commit(
     cve_id: str, 
     description: str, 
     patches: List[Dict], 
