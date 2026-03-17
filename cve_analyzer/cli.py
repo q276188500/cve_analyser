@@ -602,6 +602,7 @@ def patch_status(
 @click.option("--kernel-version", help="内核版本号")
 @click.option("--config", "config_path", type=click.Path(exists=True), help=".config 文件路径")
 @click.option("--audit", is_flag=True, help="审计当前配置")
+@click.option("--kernel-version", help="内核版本号")
 @click.pass_context
 def kconfig(
     ctx: click.Context,
@@ -619,11 +620,108 @@ def kconfig(
         cve-analyzer kconfig CVE-2024-XXXX --config=/path/to/.config
         cve-analyzer kconfig --audit --config=/path/to/.config
     """
-    console.print(f"[yellow]分析 Kconfig {cve_id} - 待实现 (Phase 5)[/yellow]")
+    from cve_analyzer.core.database import get_db
+    from cve_analyzer.core.models import CVE
+    from rich.table import Table
+    
+    db = get_db()
+    
+    # 如果是审计模式，不需要 CVE
     if audit:
-        console.print("审计模式")
-    if config_path:
-        console.print(f"配置文件: {config_path}")
+        if not config_path:
+            console.print("[red]错误: 审计模式需要指定 --config 参数[/red]")
+            return
+        console.print(f"[cyan]审计模式: {config_path}[/cyan]")
+        # TODO: 实现审计功能
+        console.print("[yellow]审计功能待实现[/yellow]")
+        return
+    
+    # 普通模式需要 CVE ID
+    if not cve_id:
+        console.print("[red]错误: 请指定 CVE ID[/red]")
+        return
+    
+    with db.session() as session:
+        cve = session.query(CVE).filter(CVE.id == cve_id.upper()).first()
+        
+        if not cve:
+            console.print(f"[red]未找到 CVE: {cve_id}[/red]")
+            return
+        
+        console.print("\n[bold cyan]═══════════════════════════════════════[/bold cyan]")
+        console.print(f"[bold]  Kconfig 分析: {cve.id}[/bold]")
+        console.print("[bold cyan]═══════════════════════════════════════[/bold cyan]")
+        
+        # CVE 描述
+        if cve.description:
+            desc = cve.description[:200]
+            console.print(f"\n[dim]{desc}...[/dim]")
+        
+        # 检查是否有配置文件
+        if not config_path:
+            console.print("\n[yellow]⚠ 请指定内核配置文件[/yellow]")
+            console.print("用法: cve-analyzer kconfig {cve_id} --config=/path/to/.config")
+            console.print(f"\n[dim]提示: 内核源码目录通常有 .config 文件[/dim]")
+            return
+        
+        # 加载配置文件
+        import os
+        if not os.path.exists(config_path):
+            console.print(f"[red]配置文件不存在: {config_path}[/red]")
+            return
+        
+        console.print(f"\n[green]✓ 已加载配置文件: {config_path}[/green]")
+        
+        # 解析 .config
+        config = {}
+        with open(config_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    if '=' in line:
+                        key, val = line.split('=', 1)
+                        config[key] = val
+        
+        console.print(f"[dim]已解析 {len(config)} 个配置项[/dim]")
+        
+        # 尝试加载 Kconfig 规则
+        try:
+            from cve_analyzer.kconfig.loader import RuleLoader
+            loader = RuleLoader()
+            rule = loader.load_rule(cve_id.upper())
+            
+            if rule:
+                console.print("\n[bold]找到 Kconfig 规则:[/bold]")
+                
+                required = rule.get("required", {})
+                configs = required.get("configs", []) if required else []
+                
+                if configs:
+                    console.print(f"\n[yellow]需要开启的配置项:[/yellow]")
+                    for cfg in configs:
+                        status = config.get(cfg, 'n')
+                        is_enabled = status in ['y', 'm']
+                        color = "green" if is_enabled else "red"
+                        console.print(f"  [{color}]{cfg} = {status}[/{color}][/dim]")
+                else:
+                    console.print("  [dim]无特定配置要求[/dim]")
+                
+                # 风险评估
+                vulnerable_if = rule.get("vulnerable_if")
+                if vulnerable_if:
+                    console.print(f"\n[bold]漏洞触发条件:[/bold]")
+                    console.print(f"  {vulnerable_if}")
+                
+                mitigation = rule.get("mitigation")
+                if mitigation:
+                    console.print(f"\n[bold]缓解建议:[/bold]")
+                    console.print(f"  {mitigation}")
+            else:
+                console.print("\n[yellow]⚠ 该 CVE 暂无 Kconfig 规则[/yellow]")
+                console.print("[dim]需要先添加 Kconfig 规则才能分析风险[/dim]")
+                
+        except Exception as e:
+            console.print(f"\n[yellow]加载 Kconfig 规则失败: {e}[/yellow]")
 
 
 # ============================================
