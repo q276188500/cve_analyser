@@ -216,10 +216,7 @@ def infer_from_patch_commit(commit_hash: str, kernel_path: str) -> List[str]:
     except Exception:
         pass
     
-    return list(configs)
-
-
-def generate_rule_from_commit(
+# 测试
     cve_id: str, 
     description: str, 
     patches: List[Dict], 
@@ -302,6 +299,78 @@ def save_rule_to_db(rule: Dict) -> bool:
     except Exception as e:
         logs.append(f"保存失败: {e}")
         return False
+
+
+async def analyze_patch_with_llm(llm, cve_id: str, patch_urls: List[str]) -> Tuple[Optional[Dict], str]:
+    """
+    使用 LLM 分析补丁，返回 Kconfig 规则
+    
+    返回: (规则, 分析日志)
+    """
+    if not patch_urls:
+        return None, "无补丁 URL"
+    
+    # 构建 prompt
+    system_prompt = """你是一个专业的 Linux 内核安全工程师。
+
+你的任务是分析 CVE 补丁，判断是否关联 Kconfig 配置，并评估影响。
+
+**分析要求**：
+1. 从补丁内容判断涉及哪些内核配置项 (如 CONFIG_EXT4_FS, CONFIG_KSMBD 等)
+2. 评估漏洞可能影响的子系统
+3. 评估修复后可能带来的功能/性能影响
+
+**输出格式**（必须严格遵守）：
+```
+关联配置: [CONFIG_XXX, CONFIG_YYY] 或 "无"
+涉及子系统: [xxx]
+功能影响: [描述]
+性能影响: [描述]
+```
+"""
+    
+    user_prompt = f"""请分析 CVE {cve_id} 的补丁。
+
+**补丁 URL**：
+{chr(10).join(patch_urls[:3])}
+
+请分析这些补丁，判断是否关联内核配置项。
+"""
+    
+    try:
+        response = await llm.chat([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ])
+        
+        content = response.content
+        
+        # 解析结果
+        configs = []
+        lines = content.split('\n')
+        for line in lines:
+            if '关联配置' in line and ':' in line:
+                config_str = line.split(':', 1)[1].strip()
+                if config_str and config_str != '无' and config_str != '[]':
+                    # 提取 CONFIG_XXX
+                    import re
+                    configs = re.findall(r'CONFIG_[A-Z0-9_]+', config_str)
+        
+        if configs:
+            rule = {
+                "cve_id": cve_id,
+                "required": {"configs": list(set(configs))},
+                "vulnerable_if": f"以下配置开启: {', '.join(configs)}",
+                "mitigation": f"如不需要，可禁用: {', '.join(configs)}",
+                "source": "llm",
+                "confidence": "high",
+            }
+            return rule, content
+        else:
+            return None, content
+            
+    except Exception as e:
+        return None, f"LLM 分析失败: {e}"
 
 
 # 测试

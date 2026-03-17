@@ -873,6 +873,155 @@ def generate_kconfig_rule(ctx: click.Context, cve_id: str, kernel_path: Optional
 
 
 # ============================================
+# batch-generate-kconfig 命令 - 批量生成 Kconfig 规则
+# ============================================
+
+@cli.command("batch-generate-kconfig")
+@click.option("--limit", default=100, help="最大处理数量")
+@click.option("--severity", help="只处理指定严重程度 (critical/high/medium/low)")
+@click.option("--provider", default="minimax", type=click.Choice(["openai", "claude", "minimax"]), help="LLM 提供商")
+@click.option("--overwrite", is_flag=True, help="覆盖已有规则")
+@click.option("--dry-run", is_flag=True, help="仅显示要处理的 CVE，不实际生成")
+@click.pass_context
+def batch_generate_kconfig(ctx: click.Context, limit: int, severity: str, provider: str, overwrite: bool, dry_run: bool):
+    """
+    批量生成所有 CVE 的 Kconfig 规则
+    
+    分析所有 CVE 的补丁，LLM 判断是否关联 Kconfig，并保存规则。
+    已生成过的 CVE 会跳过（除非使用 --overwrite）。
+    
+    示例:
+        cve-analyzer batch-generate-kconfig --limit 50
+        cve-analyzer batch-generate-kconfig --severity high --overwrite
+    """
+    import asyncio
+    
+    from cve_analyzer.core.database import get_db
+    from cve_analyzer.core.models import CVE, Patch, KconfigRule
+    from cve_analyzer.kconfig.auto_generator import analyze_patch_with_llm, save_rule_to_db
+    
+    # 检查 API Key
+    if provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        console.print("[red]错误: 未设置 OPENAI_API_KEY[/red]")
+        return
+    if provider == "claude" and not os.getenv("ANTHROPIC_API_KEY"):
+        console.print("[red]错误: 未设置 ANTHROPIC_API_KEY[/red]")
+        return
+    if provider == "minimax" and not os.getenv("MINIMAX_API_KEY"):
+        console.print("[red]错误: 未设置 MINIMAX_API_KEY[/red]")
+        return
+    
+    db = get_db()
+    
+    # 获取需要处理的 CVE
+    with db.session() as session:
+        query = session.query(CVE)
+        
+        if severity:
+            query = query.filter(CVE.severity == severity.upper())
+        
+        all_cves = query.all()
+        
+        # 过滤掉已有规则的
+        if not overwrite:
+            cve_ids = []
+            for cve in all_cves:
+                existing = session.query(KconfigRule).filter_by(cve_id=cve.id).first()
+                if not existing:
+                    cve_ids.append(cve.id)
+        else:
+            cve_ids = [cve.id for cve in all_cves]
+        
+        cve_ids = cve_ids[:limit]
+        
+        console.print(f"\n[cyan]找到 {len(cve_ids)} 个 CVE 需要处理[/cyan]")
+        
+        if dry_run:
+            console.print("\n[yellow]--dry-run 模式，仅显示要处理的 CVE:[/yellow]")
+            for cid in cve_ids[:10]:
+                console.print(f"  - {cid}")
+            if len(cve_ids) > 10:
+                console.print(f"  ... 还有 {len(cve_ids) - 10} 个")
+            return
+    
+    # 初始化 LLM
+    from cve_analyzer.llm import LLMFactory
+    llm = LLMFactory.create(provider)
+    
+    stats = {
+        "total": len(cve_ids),
+        "generated": 0,
+        "skipped": 0,
+        "failed": 0,
+    }
+    
+    # 逐个处理
+    with console.status(f"[bold green]正在批量生成规则...[/bold green]"):
+        for i, cve_id in enumerate(cve_ids):
+            with db.session() as session:
+                cve = session.query(CVE).filter(CVE.id == cve_id).first()
+                if not cve:
+                    stats["failed"] += 1
+                    continue
+                
+                # 获取补丁 URL
+                patches = session.query(Patch).filter(Patch.cve_id == cve_id).all()
+                patch_urls = [f"https://git.kernel.org/stable/c/{p.commit_hash}" for p in patches[:3]]
+                
+                # 检查是否已有规则
+                existing = session.query(KconfigRule).filter_by(cve_id=cve_id).first()
+                if existing and not overwrite:
+                    stats["skipped"] += 1
+                    continue
+                
+                if not patch_urls:
+                    stats["skipped"] += 1
+                    continue
+                
+                # LLM 分析
+                try:
+                    rule, analysis_log = asyncio.run(
+                        analyze_patch_with_llm(llm, cve_id, patch_urls)
+                    )
+                    
+                    if rule:
+                        # 保存
+                        if existing:
+                            existing.required = rule['required']
+                            existing.vulnerable_if = rule.get('vulnerable_if')
+                            existing.mitigation = rule.get('mitigation')
+                            existing.source = rule.get('source', 'llm')
+                        else:
+                            new_rule = KconfigRule(
+                                cve_id=cve_id,
+                                rule_version="1.0",
+                                required=rule['required'],
+                                vulnerable_if=rule.get('vulnerable_if'),
+                                mitigation=rule.get('mitigation'),
+                                source=rule.get('source', 'llm'),
+                            )
+                            session.add(new_rule)
+                        
+                        stats["generated"] += 1
+                        console.print(f"[{i+1}/{len(cve_ids)}] {cve_id}: ✓ 生成了规则 {rule['required']['configs']}")
+                    else:
+                        stats["skipped"] += 1
+                        console.print(f"[{i+1}/{len(cve_ids)}] {cve_id}: - 无关联配置")
+                        
+                except Exception as e:
+                    stats["failed"] += 1
+                    console.print(f"[{i+1}/{len(cve_ids)}] {cve_id}: ✗ 失败 ({e})")
+    
+    # 统计
+    console.print("\n[bold green]═══════════════════════════════════════[/bold green]")
+    console.print("[bold]统计结果:[/bold]")
+    console.print(f"  总数: {stats['total']}")
+    console.print(f"  已生成: {stats['generated']}")
+    console.print(f"  跳过: {stats['skipped']}")
+    console.print(f"  失败: {stats['failed']}")
+
+
+# ============================================
 # check-fix 命令 - 使用 LLM 检查代码是否已修复
 # ============================================
 
