@@ -848,114 +848,32 @@ def check_fix(ctx: click.Context, cve_id: str, kernel_path: Optional[str], provi
         
         console.print(f"\n[dim]找到 {len(patches)} 个补丁，取前 3 个分析[/dim]")
     
-    # 尝试获取内核代码
-    code_context = ""
+    # 使用 Agent 分析
+    if not kernel_path:
+        console.print("[red]错误: check-fix 需要指定 --kernel-path[/red]")
+        return
     
-    if kernel_path:
-        import subprocess
-        console.print(f"\n[cyan]查询内核源码: {kernel_path}[/cyan]")
-        
-        for patch in patch_info[:1]:  # 只查询第一个
-            commit = patch['commit']
-            try:
-                # 尝试获取 commit 内容
-                result = subprocess.run(
-                    ['git', 'show', commit],
-                    cwd=kernel_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-                if result.returncode == 0:
-                    code_context = f"""
-补丁 commit: {commit}
-补丁描述: {patch['subject']}
-
-代码变更:
-{result.stdout[:3000]}
-"""
-                else:
-                    # 尝试只获取 commit 元信息
-                    result = subprocess.run(
-                        ['git', 'log', '-1', '--format=%H%n%s%n%b', commit],
-                        cwd=kernel_path,
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    if result.returncode == 0:
-                        code_context = f"""
-补丁 commit: {commit}
-补丁描述: {patch['subject']}
-
-commit 信息:
-{result.stdout[:1000]}
-"""
-            except Exception as e:
-                console.print(f"[yellow]查询内核代码失败: {e}[/yellow]")
-    
-    if not code_context:
-        # 没有内核源码，使用补丁 URL
-        patch_urls = [f"https://git.kernel.org/stable/c/{p['commit']}" for p in patch_info[:3]]
-        code_context = f"""
-CVE: {cve_id}
-补丁列表:
-{chr(10).join(patch_urls)}
-
-请基于上述补丁信息分析该漏洞是否已在主线/稳定版内核中修复。
-"""
-    
-    # 使用 LLM 分析
-    console.print("\n[cyan]正在使用 LLM 分析修复状态...[/cyan]")
+    console.print("\n[cyan]正在使用智能 Agent 分析...[/cyan]")
     
     try:
         from cve_analyzer.llm import LLMFactory
+        from cve_analyzer.llm.agent import CodeAnalysisAgent
         
         llm = LLMFactory.create(provider, model=model)
+        agent = CodeAnalysisAgent(llm, kernel_path)
         
-        system_prompt = """你是一个专业的 Linux 内核安全工程师。
-
-你的任务是：判断指定的 CVE 漏洞是否已经在本地内核代码中修复。
-
-**重要**：你必须基于提供的实际代码来分析，不要推测！
-
-代码分析维度：
-1. 检查补丁 commit 是否存在于本地代码仓库 (git log 可查)
-2. 检查相关文件是否包含补丁中的关键修改
-3. 检查是否有相关的 fixup/revert commit
-
-分析步骤：
-1. 首先看"代码变更"部分是否有实际内容
-2. 如果有 commit 内容：分析代码是否已应用
-3. 如果没有 commit 内容（只有元信息）：明确说明"无法确认，需本地代码验证"
-
-输出格式（必须严格遵守）：
-```
-修复状态: [已修复/未修复/无法确认]
-风险评估: [高/中/低]
-关键发现: [你看到的代码具体情况]
-建议: [接下来要做什么]
-```
-
-注意：如果无法从代码中确认，必须说"无法确认"，不要猜测！
-"""
-        
-        async def analyze():
-            response = await llm.chat([
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": code_context}
-            ])
-            return response
-        
-        result = asyncio.run(analyze())
+        with console.status("[bold green]Agent 正在分析代码..."):
+            result = await agent.analyze(cve_id, patch_info)
         
         console.print("\n[bold green]═══════════════════════════════════════[/bold green]")
-        console.print("[bold]LLM 分析结果:[/bold]")
+        console.print("[bold]分析结果:[/bold]")
         console.print("[bold green]═══════════════════════════════════════[/bold green]")
-        console.print(f"\n{result.content}")
+        console.print(f"\n{result}")
         
     except Exception as e:
-        console.print(f"[red]LLM 分析失败: {e}[/red]")
+        import traceback
+        console.print(f"[red]分析失败: {e}[/red]")
+        console.print(traceback.format_exc())
 
 
 # ============================================

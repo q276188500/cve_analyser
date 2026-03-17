@@ -20,6 +20,8 @@ from cve_analyzer.llm.analyzer import (
 
 from cve_analyzer.llm.cache import LLMCache
 
+from cve_analyzer.llm.agent import CodeAnalysisAgent
+
 __all__ = [
     'LLMProvider',
     'LLMResponse',
@@ -30,4 +32,5 @@ __all__ = [
     'LLMVulnerabilityAnalyzer',
     'LLMReportGenerator',
     'LLMCache',
+    'CodeAnalysisAgent',
 ]
