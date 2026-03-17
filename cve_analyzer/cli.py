@@ -837,14 +837,16 @@ def check_fix(ctx: click.Context, cve_id: str, kernel_path: Optional[str], provi
         console.print(f"[bold]  检查修复状态: {cve.id}[/bold]")
         console.print("[bold cyan]═══════════════════════════════════════[/bold cyan]")
         
-        # 获取补丁信息
+        # 获取补丁信息 - 全部
         patch_info = []
-        for patch in patches[:3]:  # 取前3个
+        for patch in patches:
             patch_info.append({
                 'commit': patch.commit_hash,
                 'short': patch.commit_hash_short,
                 'subject': patch.subject,
             })
+        
+        console.print(f"\n[dim]找到 {len(patches)} 个补丁，开始分析...[/dim]")
         
         console.print(f"\n[dim]找到 {len(patches)} 个补丁，取前 3 个分析[/dim]")
     

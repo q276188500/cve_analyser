@@ -41,8 +41,8 @@ def analyze_patch_sync(llm, kernel_path: str, cve_id: str, patches: List[Dict]) 
 
 **本地内核路径**: {kernel_path}
 
-**补丁列表**：
-{chr(10).join([f"- {p['commit'][:12]}: {p.get('subject', 'N/A')[:100]}" for p in patches[:2]])}
+**补丁列表**（共 {len(patches)} 个）：
+{chr(10).join([f"- {p['commit'][:12]}: {str(p.get('subject', 'N/A'))[:100]}" for p in patches[:5]])}
 
 **本地代码查询结果**：
 {code_context}
@@ -64,7 +64,7 @@ async def _fetch_patch_code(kernel_path: str, patches: List[Dict]) -> str:
     """获取补丁代码"""
     results = []
     
-    for patch in patches[:2]:  # 只查前2个
+    for patch in patches[:5]:  # 查前5个
         commit = patch['commit']
         short = patch.get('commit_hash_short', commit[:12])
         
