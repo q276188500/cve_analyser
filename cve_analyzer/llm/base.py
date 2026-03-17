@@ -175,6 +175,98 @@ class ClaudeProvider(LLMProvider):
         return (input_tokens / 1000 * input_price) + (output_tokens / 1000 * output_price)
 
 
+class MinimaxProvider(LLMProvider):
+    """MiniMax 接口
+    
+    支持模型:
+    - MiniMax-M2.1 (默认)
+    - MiniMax-Text-01
+    """
+    
+    API_BASE = "https://api.minimax.chat/v1"
+    
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+        self.api_key = api_key or os.getenv("MINIMAX_API_KEY")
+        if not self.api_key:
+            raise ValueError("MiniMax API key required. Set MINIMAX_API_KEY env var.")
+        
+        super().__init__(model)
+        
+        # MiniMax 使用 group_id 来区分不同账号
+        self.group_id = os.getenv("MINIMAX_GROUP_ID", "")
+    
+    def _default_model(self) -> str:
+        return "MiniMax-M2.1"
+    
+    async def chat(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
+        import httpx
+        
+        # 转换消息格式
+        transformed_messages = []
+        for msg in messages:
+            role = msg["role"]
+            if role == "system":
+                role = "system"
+            elif role == "user":
+                role = "user"
+            elif role == "assistant":
+                role = "assistant"
+            transformed_messages.append({
+                "role": role,
+                "content": msg["content"]
+            })
+        
+        url = f"{self.API_BASE}/text/chatcompletion_v2"
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        
+        payload = {
+            "model": self.model,
+            "messages": transformed_messages,
+            "temperature": kwargs.get("temperature", 0.3),
+            "max_tokens": kwargs.get("max_tokens", 4096),
+        }
+        
+        if self.group_id:
+            payload["group_id"] = self.group_id
+        
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+            
+            content = data["choices"][0]["message"]["content"]
+            usage = data.get("usage", {})
+            tokens_in = usage.get("prompt_tokens", 0)
+            tokens_out = usage.get("completion_tokens", 0)
+            
+            return LLMResponse(
+                content=content,
+                model=self.model,
+                tokens_used=tokens_in + tokens_out,
+                cost_usd=self.estimate_cost(tokens_in, tokens_out),
+                metadata={}
+            )
+        except httpx.HTTPError as e:
+            raise RuntimeError(f"MiniMax API error: {e}")
+        except KeyError as e:
+            raise RuntimeError(f"Invalid MiniMax response: {e}")
+    
+    def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
+        """估算成本 (USD) - MiniMax 价格"""
+        # MiniMax M2.1 价格 (per 1M tokens)
+        prices = {
+            "MiniMax-M2.1": (1.0, 1.0),  # input, output
+            "MiniMax-Text-01": (0.8, 0.8),
+        }
+        input_price, output_price = prices.get(self.model, (1.0, 1.0))
+        return (input_tokens / 1_000_000 * input_price) + (output_tokens / 1_000_000 * output_price)
+
+
 class LLMFactory:
     """LLM 提供商工厂"""
 
@@ -184,7 +276,7 @@ class LLMFactory:
         创建 LLM 提供商实例
 
         Args:
-            provider: "openai", "claude", "ollama"
+            provider: "openai", "claude", "ollama", "minimax"
             **kwargs: 传递给提供商构造函数的参数
 
         Returns:
@@ -193,7 +285,7 @@ class LLMFactory:
         providers = {
             "openai": OpenAIProvider,
             "claude": ClaudeProvider,
-            
+            "minimax": MinimaxProvider,
         }
 
         if provider not in providers:

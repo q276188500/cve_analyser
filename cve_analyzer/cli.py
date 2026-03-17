@@ -1235,8 +1235,8 @@ def report(
 
 @cli.command("llm-analyze")
 @click.argument("cve_id")
-@click.option("--provider", default="openai", type=click.Choice(["openai", "claude"]), help="LLM 提供商")
-@click.option("--model", help="模型名称 (如 gpt-4, claude-3-opus)")
+@click.option("--provider", default="openai", type=click.Choice(["openai", "claude", "minimax"]), help="LLM 提供商")
+@click.option("--model", help="模型名称 (如 gpt-4, claude-3-opus, MiniMax-M2.1)")
 @click.option("--output", "-o", type=click.Choice(["json", "markdown"]), default="markdown", help="输出格式")
 @click.pass_context
 async def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], output: str):
@@ -1244,11 +1244,15 @@ async def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], out
     使用大模型分析 CVE
     
     利用 LLM 提供更深入的漏洞分析和修复建议。
-    需要设置 API Key 环境变量 (OPENAI_API_KEY 或 ANTHROPIC_API_KEY)。
+    需要设置 API Key 环境变量:
+    - OpenAI: OPENAI_API_KEY
+    - Claude: ANTHROPIC_API_KEY
+    - MiniMax: MINIMAX_API_KEY (+ MINIMAX_GROUP_ID)
     
     示例:
         cve-analyzer llm-analyze CVE-2024-1234
         cve-analyzer llm-analyze CVE-2024-1234 --provider=claude --model=claude-3-opus
+        cve-analyzer llm-analyze CVE-2024-1234 --provider=minimax --model=MiniMax-M2.1
         cve-analyzer llm-analyze CVE-2024-1234 --output=json
     """
     import asyncio
@@ -1266,6 +1270,10 @@ async def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], out
         return
     if provider == "claude" and not os.getenv("ANTHROPIC_API_KEY"):
         console.print("[red]错误: 未设置 ANTHROPIC_API_KEY 环境变量[/red]")
+        return
+    if provider == "minimax" and not os.getenv("MINIMAX_API_KEY"):
+        console.print("[red]错误: 未设置 MINIMAX_API_KEY 环境变量[/red]")
+        console.print("提示: 还可设置 MINIMAX_GROUP_ID (可选)")
         return
     
     # 获取 CVE 数据
@@ -1368,6 +1376,10 @@ async def llm_batch_analyze(ctx, cve_list: str, provider: str, model: Optional[s
         return
     if provider == "claude" and not os.getenv("ANTHROPIC_API_KEY"):
         console.print("[red]错误: 未设置 ANTHROPIC_API_KEY 环境变量[/red]")
+        return
+    if provider == "minimax" and not os.getenv("MINIMAX_API_KEY"):
+        console.print("[red]错误: 未设置 MINIMAX_API_KEY 环境变量[/red]")
+        console.print("提示: 还可设置 MINIMAX_GROUP_ID (可选)")
         return
     
     # 读取 CVE 列表
