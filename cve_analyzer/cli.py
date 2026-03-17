@@ -693,8 +693,13 @@ def kconfig(
             if rule:
                 console.print("\n[bold]找到 Kconfig 规则:[/bold]")
                 
-                required = rule.get("required", {})
-                configs = required.get("configs", []) if required else []
+                required = rule.get("required", [])
+                if isinstance(required, dict):
+                    configs = required.get("configs", [])
+                elif isinstance(required, list):
+                    configs = required
+                else:
+                    configs = []
                 
                 if configs:
                     console.print(f"\n[yellow]需要开启的配置项:[/yellow]")
@@ -702,7 +707,7 @@ def kconfig(
                         status = config.get(cfg, 'n')
                         is_enabled = status in ['y', 'm']
                         color = "green" if is_enabled else "red"
-                        console.print(f"  [{color}]{cfg} = {status}[/{color}][/dim]")
+                        console.print(f"  [{color}]{cfg} = {status}[/{color}]")
                 else:
                     console.print("  [dim]无特定配置要求[/dim]")
                 
