@@ -355,16 +355,16 @@ def extract_patches(ctx: click.Context, cve_id: Optional[str], dry_run: bool):
         if cve_id:
             cves = session.query(CVE).filter(CVE.id == cve_id.upper()).all()
         else:
-            # 获取所有有 PATCH 引用的 CVE
+            # 获取所有有 git commit URL 引用的 CVE (包括 PATCH 和 NONE 类型)
             cves = session.query(CVE).join(CVEReference).filter(
-                CVEReference.type == "PATCH"
+                CVEReference.url.like('%git.kernel.org/%')
             ).distinct().all()
         
         if not cves:
-            console.print("[yellow]没有找到有 PATCH 引用的 CVE[/yellow]")
+            console.print("[yellow]没有找到有 git commit URL 的 CVE[/yellow]")
             return
         
-        console.print(f"[bold]找到 {len(cves)} 个 CVE 有 PATCH 引用[/bold]\n")
+        console.print(f"[bold]找到 {len(cves)} 个 CVE 有 git commit URL[/bold]\n")
         
         # Git kernel 补丁 URL 正则
         # 格式: https://git.kernel.org/stable/c/abc123... 或 https://git.kernel.org/pub/scm/.../commit/abc123
@@ -377,15 +377,15 @@ def extract_patches(ctx: click.Context, cve_id: Optional[str], dry_run: bool):
         total_skipped = 0
         
         for cve in cves:
-            # 获取该 CVE 的 PATCH 引用
-            patch_refs = session.query(CVEReference).filter(
+            # 获取该 CVE 的 git.kernel.org 引用
+            git_refs = session.query(CVEReference).filter(
                 CVEReference.cve_id == cve.id,
-                CVEReference.type == "PATCH"
+                CVEReference.url.like('%git.kernel.org/%')
             ).all()
             
-            console.print(f"[cyan]{cve.id}[/cyan]: 找到 {len(patch_refs)} 个 PATCH 引用")
+            console.print(f"[cyan]{cve.id}[/cyan]: 找到 {len(git_refs)} 个 git 引用")
             
-            for ref in patch_refs:
+            for ref in git_refs:
                 url = ref.url
                 
                 # 尝试解析 commit hash
