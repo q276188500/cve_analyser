@@ -790,7 +790,7 @@ def kconfig(
 @click.option("--provider", default="minimax", type=click.Choice(["openai", "claude", "minimax"]), help="LLM 提供商")
 @click.option("--model", help="模型名称")
 @click.pass_context
-async def check_fix(ctx: click.Context, cve_id: str, kernel_path: Optional[str], provider: str, model: Optional[str]):
+def check_fix(ctx: click.Context, cve_id: str, kernel_path: Optional[str], provider: str, model: Optional[str]):
     """
     检查 CVE 补丁是否已修复
     
@@ -863,7 +863,7 @@ async def check_fix(ctx: click.Context, cve_id: str, kernel_path: Optional[str],
         agent = CodeAnalysisAgent(llm, kernel_path)
         
         with console.status("[bold green]Agent 正在分析代码..."):
-            result = await agent.analyze(cve_id, patch_info)
+            result = asyncio.run(agent.analyze(cve_id, patch_info))
         
         console.print("\n[bold green]═══════════════════════════════════════[/bold green]")
         console.print("[bold]分析结果:[/bold]")
