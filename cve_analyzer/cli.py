@@ -555,21 +555,20 @@ def patch_history(
         cve-analyzer patch-history CVE-2024-XXXX --show-reverts
     """
     from cve_analyzer.history import HistoryAnalyzer, ChangeType
+    from cve_analyzer.core.database import get_db
+    from cve_analyzer.core.models import CVE, Patch
     
-    # 获取数据库会话
-    db = ctx.ensure_object(dict).get('db')
+    db = get_db()
     
     with console.status("[bold green]正在查询数据库..."):
-        from cve_analyzer.core.models import CVE, Patch
-        
-        cve = db.query(CVE).filter(CVE.cve_id == cve_id).first()
+        cve = db.get_session().query(CVE).filter(CVE.id == cve_id.upper()).first()
         if not cve:
             console.print(f"[red]错误: 数据库中未找到 {cve_id}[/red]")
             console.print(f"请先运行: cve-analyzer sync --cve={cve_id}")
             return
         
         # 获取补丁信息
-        patches = db.query(Patch).filter(Patch.cve_id == cve_id).all()
+        patches = db.get_session().query(Patch).filter(Patch.cve_id == cve_id.upper()).all()
         if not patches:
             console.print(f"[red]错误: 未找到 {cve_id} 的补丁信息[/red]")
             return
