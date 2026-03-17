@@ -42,12 +42,12 @@ def analyze_patch_sync(llm, kernel_path: str, cve_id: str, patches: List[Dict]) 
 **本地内核路径**: {kernel_path}
 
 **补丁列表**（共 {len(patches)} 个）：
-{chr(10).join([f"- {p['commit'][:12]}: {str(p.get('subject', 'N/A'))[:100]}" for p in patches[:5]])}
+{chr(10).join([f"- {p['commit'][:12]}: {str(p.get('subject', 'N/A'))[:80]}" for p in patches])}
 
 **本地代码查询结果**：
 {code_context}
 
-请基于以上代码查询结果进行分析，直接给出结论。
+请基于以上代码查询结果进行分析，给出结论。
 """
         
         response = await llm.chat([
@@ -64,13 +64,14 @@ async def _fetch_patch_code(kernel_path: str, patches: List[Dict]) -> str:
     """获取补丁代码"""
     results = []
     
-    for patch in patches[:5]:  # 查前5个
+    # 不限制数量，全部查询
+    for patch in patches:
         commit = patch['commit']
         short = patch.get('commit_hash_short', commit[:12])
         
         results.append(f"\n=== 补丁: {short} ===")
         
-        # 1. 检查 commit 是否存在 (快速)
+        # 1. 检查 commit 是否存在
         result = subprocess.run(
             ["git", "log", "-1", "--oneline", commit],
             cwd=kernel_path,
@@ -82,17 +83,6 @@ async def _fetch_patch_code(kernel_path: str, patches: List[Dict]) -> str:
         if result.returncode == 0 and result.stdout:
             results.append(f"✓ Commit 存在于本地仓库")
             results.append(f"  {result.stdout.strip()}")
-            
-            # 2. 获取文件列表
-            result = subprocess.run(
-                ["git", "show", "--stat", "--format=", commit],
-                cwd=kernel_path,
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            if result.returncode == 0 and result.stdout:
-                results.append(f"\n修改的文件:\n{result.stdout[:500]}")
         else:
             results.append(f"✗ Commit 不存在于本地仓库")
     
