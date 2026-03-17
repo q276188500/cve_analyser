@@ -1287,14 +1287,22 @@ def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], output: s
             console.print(f"[red]错误: CVE {cve_id} 不存在[/red]")
             return
         
-        # 复制需要的数据，避免 session 问题
-        cve_data = {
+        # 创建简单的数据对象供 LLM 使用
+        class CVEData:
+            def __init__(self, data):
+                self.id = data['id']
+                self.description = data.get('description')
+                self.severity = data.get('severity')
+                self.cvss_score = data.get('cvss_score')
+                self.published_date = data.get('published_date')
+        
+        cve_data = CVEData({
             'id': cve.id,
             'description': cve.description,
             'severity': cve.severity,
             'cvss_score': cve.cvss_score,
             'published_date': cve.published_date,
-        }
+        })
     
     # 初始化 LLM
     try:
