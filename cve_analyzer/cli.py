@@ -1239,7 +1239,7 @@ def report(
 @click.option("--model", help="模型名称 (如 gpt-4, claude-3-opus, MiniMax-M2.1)")
 @click.option("--output", "-o", type=click.Choice(["json", "markdown"]), default="markdown", help="输出格式")
 @click.pass_context
-async def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], output: str):
+def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], output: str):
     """
     使用大模型分析 CVE
     
