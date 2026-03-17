@@ -781,6 +781,98 @@ def kconfig(
 
 
 # ============================================
+# generate-kconfig-rule 命令 - 生成并保存 Kconfig 规则
+# ============================================
+
+@cli.command("generate-kconfig-rule")
+@click.argument("cve-id")
+@click.option("--kernel-path", type=click.Path(exists=True), help="内核源码路径 (用于从补丁推断配置)")
+@click.option("--dry-run", is_flag=True, help="仅显示规则，不保存")
+@click.pass_context
+def generate_kconfig_rule(ctx: click.Context, cve_id: str, kernel_path: Optional[str], dry_run: bool):
+    """
+    基于 CVE 描述和补丁生成 Kconfig 规则，并持久化到数据库
+    
+    分析过程：
+    1. 从 CVE 描述提取明确提到的配置项
+    2. 从补丁 commit 的文件变更推断配置项
+    3. 合并结果并保存到数据库
+    
+    示例:
+        cve-analyzer generate-kconfig-rule CVE-2025-68817
+        cve-analyzer generate-kconfig-rule CVE-2025-68817 --kernel-path ~/linux-5.10
+        cve-analyzer generate-kconfig-rule CVE-2025-68817 --dry-run
+    """
+    from cve_analyzer.core.database import get_db
+    from cve_analyzer.core.models import CVE, Patch
+    
+    db = get_db()
+    
+    with db.session() as session:
+        cve = session.query(CVE).filter(CVE.id == cve_id.upper()).first()
+        
+        if not cve:
+            console.print(f"[red]未找到 CVE: {cve_id}[/red]")
+            return
+        
+        # 获取补丁信息
+        patches = session.query(Patch).filter(Patch.cve_id == cve.id).all()
+        
+        patch_list = []
+        for p in patches:
+            patch_list.append({
+                'commit': p.commit_hash,
+                'subject': p.subject,
+            })
+        
+        console.print("\n[bold cyan]═══════════════════════════════════════[/bold cyan]")
+        console.print(f"[bold]  生成 Kconfig 规则: {cve.id}[/bold]")
+        console.print("[bold cyan]═══════════════════════════════════════[/bold cyan]")
+        
+        # 生成规则
+        from cve_analyzer.kconfig.auto_generator import (
+            generate_rule_from_commit,
+            save_rule_to_db,
+        )
+        
+        rule, logs = generate_rule_from_commit(
+            cve_id=cve.id,
+            description=cve.description or "",
+            patches=patch_list,
+            kernel_path=kernel_path,
+        )
+        
+        # 显示分析过程
+        console.print("\n[bold]分析过程:[/bold]")
+        for log in logs:
+            console.print(f"  - {log}")
+        
+        if not rule:
+            console.print("\n[yellow]⚠ 无法生成规则[/yellow]")
+            console.print("  原因: CVE 描述和补丁中未找到明确的 Kconfig 配置项")
+            return
+        
+        # 显示规则
+        console.print("\n[bold green]生成的规则:[/bold green]")
+        console.print(f"  CVE: {rule['cve_id']}")
+        console.print(f"  配置项: {', '.join(rule['required']['configs'])}")
+        console.print(f"  置信度: {rule.get('confidence', 'unknown')}")
+        console.print(f"  触发条件: {rule.get('vulnerable_if', 'N/A')}")
+        
+        if dry_run:
+            console.print("\n[yellow]--dry-run 模式，仅显示规则[/yellow]")
+            return
+        
+        # 保存到数据库
+        success = save_rule_to_db(rule)
+        
+        if success:
+            console.print("\n[bold green]✓ 规则已保存到数据库[/bold green]")
+        else:
+            console.print("\n[red]✗ 保存失败[/red]")
+
+
+# ============================================
 # check-fix 命令 - 使用 LLM 检查代码是否已修复
 # ============================================
 

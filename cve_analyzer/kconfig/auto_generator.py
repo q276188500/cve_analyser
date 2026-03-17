@@ -2,10 +2,16 @@
 Kconfig 规则自动生成器
 
 严格模式：只推断明确的配置项，不确定的不写
+
+功能：
+1. 基于 CVE 描述生成规则
+2. 基于补丁 commit 的文件变更推断规则
+3. 规则持久化到数据库
 """
 
 import re
-from typing import List, Dict, Optional
+import subprocess
+from typing import List, Dict, Optional, Tuple
 
 
 # 明确的 Kconfig 关键词映射
@@ -140,12 +146,14 @@ def infer_from_patch_files(patch_urls: List[str]) -> List[str]:
     return list(inferred)
 
 
-def generate_rule(cve_id: str, description: str, patch_urls: List[str]) -> Optional[Dict]:
+def generate_rule(cve_id: str, description: str, patch_urls: List[str] = None) -> Optional[Dict]:
     """
     生成 Kconfig 规则
     
     严格模式：只有明确信息才生成规则
     """
+    patch_urls = patch_urls or []
+    
     # 方法1: 从描述中提取
     explicit_configs = extract_explicit_configs(description)
     
@@ -170,6 +178,130 @@ def generate_rule(cve_id: str, description: str, patch_urls: List[str]) -> Optio
     }
     
     return rule
+
+
+def infer_from_patch_commit(commit_hash: str, kernel_path: str) -> List[str]:
+    """
+    从补丁 commit 的文件变更推断 Kconfig
+    
+    从 git show 获取修改的文件，然后推断需要的配置
+    """
+    configs = set()
+    
+    try:
+        result = subprocess.run(
+            ["git", "show", "--stat", "--format=", commit_hash],
+            cwd=kernel_path,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode != 0:
+            return []
+        
+        # 解析修改的文件
+        files = []
+        for line in result.stdout.strip().split('\n'):
+            if '/' in line:
+                # 获取目录前缀
+                path = line.split('/')[0]
+                files.append(path)
+        
+        # 从文件路径推断配置
+        for file_path in files:
+            if file_path in FILE_TO_KCONFIG:
+                configs.add(FILE_TO_KCONFIG[file_path])
+    
+    except Exception:
+        pass
+    
+    return list(configs)
+
+
+def generate_rule_from_commit(
+    cve_id: str, 
+    description: str, 
+    patches: List[Dict], 
+    kernel_path: str = None
+) -> Tuple[Optional[Dict], List[str]]:
+    """
+    基于补丁 commit 生成 Kconfig 规则
+    
+    返回: (规则, 日志信息)
+    """
+    logs = []
+    
+    # 方法1: 从描述中提取
+    explicit_configs = extract_explicit_configs(description)
+    if explicit_configs:
+        logs.append(f"从描述提取: {explicit_configs}")
+    
+    # 方法2: 从补丁 commit 文件推断
+    commit_configs = []
+    if kernel_path:
+        for patch in patches[:3]:  # 最多查3个
+            commit = patch.get('commit', '')
+            if commit:
+                configs = infer_from_patch_commit(commit, kernel_path)
+                if configs:
+                    commit_configs.extend(configs)
+                    logs.append(f"从 commit {commit[:12]} 推断: {configs}")
+    
+    # 合并
+    all_configs = set(explicit_configs) | set(commit_configs)
+    
+    if not all_configs:
+        return None, logs
+    
+    # 生成规则
+    rule = {
+        "cve_id": cve_id,
+        "required": {"configs": list(all_configs)},
+        "vulnerable_if": f"以下配置开启: {', '.join(all_configs)}",
+        "mitigation": f"如不需要，可禁用: {', '.join(all_configs)}",
+        "source": "auto",
+        "confidence": "high" if explicit_configs else "medium",
+    }
+    
+    return rule, logs
+
+
+def save_rule_to_db(rule: Dict) -> bool:
+    """保存规则到数据库"""
+    try:
+        from cve_analyzer.core.database import get_db
+        from cve_analyzer.core.models import KconfigRule
+        
+        db = get_db()
+        with db.session() as session:
+            # 检查是否已存在
+            existing = session.query(KconfigRule).filter_by(cve_id=rule['cve_id']).first()
+            
+            if existing:
+                # 更新
+                existing.required = rule.get('required')
+                existing.vulnerable_if = rule.get('vulnerable_if')
+                existing.mitigation = rule.get('mitigation')
+                existing.source = rule.get('source', 'auto')
+                logs.append(f"更新已存在的规则")
+            else:
+                # 创建
+                new_rule = KconfigRule(
+                    cve_id=rule['cve_id'],
+                    rule_version="1.0",
+                    required=rule.get('required'),
+                    vulnerable_if=rule.get('vulnerable_if'),
+                    mitigation=rule.get('mitigation'),
+                    source=rule.get('source', 'auto'),
+                )
+                session.add(new_rule)
+                logs.append(f"创建新规则")
+        
+        return True
+    except Exception as e:
+        logs.append(f"保存失败: {e}")
+        return False
 
 
 # 测试
