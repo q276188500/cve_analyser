@@ -598,18 +598,19 @@ def patch_status(
 # ============================================
 
 @cli.command()
-@click.argument("cve-id")
+@click.argument("cve-id", required=False)
 @click.option("--kernel-version", help="内核版本号")
 @click.option("--config", "config_path", type=click.Path(exists=True), help=".config 文件路径")
 @click.option("--audit", is_flag=True, help="审计当前配置")
-@click.option("--kernel-version", help="内核版本号")
+@click.option("--auto-generate", is_flag=True, help="自动从描述生成 Kconfig 规则")
 @click.pass_context
 def kconfig(
     ctx: click.Context,
-    cve_id: str,
+    cve_id: Optional[str],
     kernel_version: Optional[str],
     config_path: Optional[str],
     audit: bool,
+    auto_generate: bool,
 ):
     """
     分析 Kconfig 配置依赖
@@ -639,6 +640,56 @@ def kconfig(
     # 普通模式需要 CVE ID
     if not cve_id:
         console.print("[red]错误: 请指定 CVE ID[/red]")
+        return
+    
+    # 自动生成规则模式
+    if auto_generate:
+        console.print("[cyan]自动生成 Kconfig 规则...[/cyan]\n")
+        
+        from cve_analyzer.kconfig.auto_generator import generate_rule
+        from cve_analyzer.core.models import KconfigRule
+        
+        with db.session() as session:
+            cve = session.query(CVE).filter(CVE.id == cve_id.upper()).first()
+            
+            if not cve:
+                console.print(f"[red]未找到 CVE: {cve_id}[/red]")
+                return
+            
+            # 获取补丁 URL
+            patch_urls = [r.url for r in cve.references] if cve.references else []
+            
+            # 自动生成规则
+            rule = generate_rule(cve.id, cve.description or "", patch_urls)
+            
+            if rule:
+                console.print(f"[green]✓ 成功生成 Kconfig 规则[/green]")
+                console.print(f"  配置项: {', '.join(rule['required']['configs'])}")
+                console.print(f"  置信度: {rule.get('confidence', 'unknown')}")
+                
+                # 保存到数据库
+                existing = session.query(KconfigRule).filter_by(cve_id=cve.id).first()
+                if existing:
+                    console.print(f"  [dim]规则已存在，将更新[/dim]")
+                    existing.required = rule['required']
+                    existing.vulnerable_if = rule.get('vulnerable_if')
+                    existing.mitigation = rule.get('mitigation')
+                else:
+                    new_rule = KconfigRule(
+                        cve_id=cve.id,
+                        rule_version="1.0",
+                        required=rule['required'],
+                        vulnerable_if=rule.get('vulnerable_if'),
+                        mitigation=rule.get('mitigation'),
+                        source=rule.get('source', 'auto'),
+                    )
+                    session.add(new_rule)
+                    console.print(f"  [green]✓ 已保存到数据库[/green]")
+            else:
+                console.print(f"[yellow]⚠ 无法自动生成规则[/yellow]")
+                console.print("  原因: CVE 描述中未找到明确的 Kconfig 配置项")
+                console.print("  提示: Kconfig 规则需要手动添加")
+        
         return
     
     with db.session() as session:
