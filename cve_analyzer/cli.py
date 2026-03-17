@@ -366,13 +366,11 @@ def extract_patches(ctx: click.Context, cve_id: Optional[str], dry_run: bool):
         
         console.print(f"[bold]找到 {len(cves)} 个 CVE 有 PATCH 引用[/bold]\n")
         
-        # GitHub/GitLab commit URL 正则
-        commit_url_pattern = re.compile(
-            r'https?://([^/]+)/(.+)/commit/([a-fA-F0-9]+)'
-        )
-        # 短链接格式: https://git.kernel.org/stable/c/abc123...
-        short_url_pattern = re.compile(
-            r'https?://([^/]+)/c/([a-fA-F0-9]+)'
+        # Git kernel 补丁 URL 正则
+        # 格式: https://git.kernel.org/stable/c/abc123... 或 https://git.kernel.org/pub/scm/.../commit/abc123
+        git_patch_pattern = re.compile(
+            r'https?://[^/]+/(?:stable|pub/scm)/c/([a-fA-F0-9]+)|'
+            r'commit/([a-fA-F0-9]{8,40})'
         )
         
         total_extracted = 0
@@ -393,15 +391,11 @@ def extract_patches(ctx: click.Context, cve_id: Optional[str], dry_run: bool):
                 # 尝试解析 commit hash
                 commit_hash = None
                 
-                # 尝试标准 commit URL
-                match = commit_url_pattern.search(url)
+                # 尝试匹配 git patch URL
+                match = git_patch_pattern.search(url)
                 if match:
-                    commit_hash = match.group(3)
-                else:
-                    # 尝试短格式
-                    match = short_url_pattern.search(url)
-                    if match:
-                        commit_hash = match.group(2)
+                    # group(1) 或 group(2) 可能有值
+                    commit_hash = match.group(1) or match.group(2)
                 
                 if not commit_hash:
                     total_skipped += 1
@@ -582,8 +576,8 @@ def patch_status(
             console.print(f"\n  [{i}] {patch.commit_hash[:12]}...")
             if patch.commit_hash_short:
                 console.print(f"      短哈希: {patch.commit_hash_short}")
-            if patch.description:
-                desc = patch.description[:100]
+            if patch.subject:
+                desc = patch.subject[:100]
                 console.print(f"      描述: {desc}...")
         
         # 检测状态
