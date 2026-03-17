@@ -790,7 +790,7 @@ def kconfig(
 @click.option("--provider", default="minimax", type=click.Choice(["openai", "claude", "minimax"]), help="LLM 提供商")
 @click.option("--model", help="模型名称")
 @click.pass_context
-def check_fix(ctx: click.Context, cve_id: str, kernel_path: Optional[str], provider: str, model: Optional[str]):
+async def check_fix(ctx: click.Context, cve_id: str, kernel_path: Optional[str], provider: str, model: Optional[str]):
     """
     检查 CVE 补丁是否已修复
     
