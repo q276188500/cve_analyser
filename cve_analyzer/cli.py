@@ -399,11 +399,6 @@ def analyze(ctx: click.Context, cve_id: str, deep: bool):
             for ref in cve.references[:5]:  # 最多显示 5 个
                 console.print(f"  - {ref.url}")
         
-        # 受影响版本
-        if cve.affected_versions:
-            console.print("\n[bold]受影响版本:[/bold]")
-            console.print(f"  {cve.affected_versions}")
-        
         console.print()
 
 
