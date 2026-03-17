@@ -330,6 +330,121 @@ def sync(ctx: click.Context, since: Optional[str], until: Optional[str], source:
 
 
 # ============================================
+# extract-patches 命令
+# ============================================
+
+import re
+
+@cli.command("extract-patches")
+@click.option("--cve-id", help="只处理指定 CVE")
+@click.option("--dry-run", is_flag=True, help="模拟运行，不保存")
+@click.pass_context
+def extract_patches(ctx: click.Context, cve_id: Optional[str], dry_run: bool):
+    """
+    从 CVE 引用中提取补丁信息
+    
+    从 PATCH 类型的引用中解析 Git commit URL，提取补丁信息存入数据库
+    """
+    from cve_analyzer.core.database import get_db
+    from cve_analyzer.core.models import CVE, CVEReference, Patch
+    
+    db = get_db()
+    
+    with db.session() as session:
+        # 获取需要处理的 CVE
+        if cve_id:
+            cves = session.query(CVE).filter(CVE.id == cve_id.upper()).all()
+        else:
+            # 获取所有有 PATCH 引用的 CVE
+            cves = session.query(CVE).join(CVEReference).filter(
+                CVEReference.type == "PATCH"
+            ).distinct().all()
+        
+        if not cves:
+            console.print("[yellow]没有找到有 PATCH 引用的 CVE[/yellow]")
+            return
+        
+        console.print(f"[bold]找到 {len(cves)} 个 CVE 有 PATCH 引用[/bold]\n")
+        
+        # GitHub/GitLab commit URL 正则
+        commit_url_pattern = re.compile(
+            r'https?://([^/]+)/(.+)/commit/([a-fA-F0-9]+)'
+        )
+        # 短链接格式: https://git.kernel.org/stable/c/abc123...
+        short_url_pattern = re.compile(
+            r'https?://([^/]+)/c/([a-fA-F0-9]+)'
+        )
+        
+        total_extracted = 0
+        total_skipped = 0
+        
+        for cve in cves:
+            # 获取该 CVE 的 PATCH 引用
+            patch_refs = session.query(CVEReference).filter(
+                CVEReference.cve_id == cve.id,
+                CVEReference.type == "PATCH"
+            ).all()
+            
+            console.print(f"[cyan]{cve.id}[/cyan]: 找到 {len(patch_refs)} 个 PATCH 引用")
+            
+            for ref in patch_refs:
+                url = ref.url
+                
+                # 尝试解析 commit hash
+                commit_hash = None
+                
+                # 尝试标准 commit URL
+                match = commit_url_pattern.search(url)
+                if match:
+                    commit_hash = match.group(3)
+                else:
+                    # 尝试短格式
+                    match = short_url_pattern.search(url)
+                    if match:
+                        commit_hash = match.group(2)
+                
+                if not commit_hash:
+                    total_skipped += 1
+                    continue
+                
+                # 标准化为小写
+                commit_hash = commit_hash.lower()
+                commit_hash_short = commit_hash[:12] if len(commit_hash) >= 12 else commit_hash
+                
+                # 检查是否已存在
+                existing = session.query(Patch).filter(
+                    Patch.commit_hash == commit_hash
+                ).first()
+                
+                if existing:
+                    continue
+                
+                if dry_run:
+                    console.print(f"  [dim]将创建: {commit_hash_short}... ({url[:50]}...)[/dim]")
+                    total_extracted += 1
+                    continue
+                
+                # 创建 Patch 记录
+                patch = Patch(
+                    cve_id=cve.id,
+                    commit_hash=commit_hash,
+                    commit_hash_short=commit_hash_short,
+                    subject=url,  # 用 URL 作为临时 subject
+                    author="Unknown",
+                )
+                session.add(patch)
+                total_extracted += 1
+        
+        console.print(f"\n[bold green]✓ 处理完成![/bold green]")
+        if dry_run:
+            console.print(f"将提取: {total_extracted} 个补丁")
+            console.print(f"跳过: {total_skipped} 个 (无法解析)")
+        else:
+            console.print(f"已提取: {total_extracted} 个补丁")
+            console.print(f"跳过: {total_skipped} 个 (无法解析)")
+
+
+# ============================================
 # analyze 命令
 # ============================================
 
