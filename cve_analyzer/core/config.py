@@ -125,8 +125,6 @@ class Settings(BaseSettings):
     """全局配置"""
     model_config = SettingsConfigDict(
         env_prefix="CVE_ANALYZER_",
-        yaml_file="config.yaml",
-        yaml_file_encoding="utf-8",
     )
     
     # 基础配置 - 使用跨平台默认路径
