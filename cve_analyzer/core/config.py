@@ -3,11 +3,47 @@
 使用 Pydantic Settings 管理配置
 """
 
+import os
+import platform
 from pathlib import Path
 from typing import List, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def get_default_data_dir() -> str:
+    """
+    获取平台默认数据目录
+    
+    Linux: ~/.local/share/cve-analyzer/
+    macOS: ~/Library/Application Support/cve-analyzer/
+    Windows: %APPDATA%/cve-analyzer/
+    """
+    system = platform.system()
+    
+    if system == "Windows":
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+    elif system == "Darwin":  # macOS
+        base = Path.home() / "Library" / "Application Support"
+    else:  # Linux and others
+        base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    
+    return str(base / "cve-analyzer")
+
+
+def get_default_report_dir() -> str:
+    """获取平台默认报告目录"""
+    system = platform.system()
+    
+    if system == "Windows":
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+    elif system == "Darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    
+    return str(base / "cve-analyzer" / "reports")
 
 
 class KernelConfig(BaseSettings):
@@ -93,9 +129,9 @@ class Settings(BaseSettings):
         yaml_file_encoding="utf-8",
     )
     
-    # 基础配置
-    data_dir: str = Field(default="./data")
-    database_path: str = Field(default="./data/cve-analyzer.db")
+    # 基础配置 - 使用跨平台默认路径
+    data_dir: str = Field(default_factory=lambda: get_default_data_dir())
+    database_path: str = Field(default="cve-analyzer.db")
     log_level: str = Field(default="INFO")
     
     # 子配置
@@ -107,14 +143,23 @@ class Settings(BaseSettings):
     def model_post_init(self, __context) -> None:
         """初始化后处理路径"""
         # 确保数据目录存在
-        Path(self.data_dir).mkdir(parents=True, exist_ok=True)
+        data_path = Path(self.data_dir)
+        data_path.mkdir(parents=True, exist_ok=True)
         
-        # 转换相对路径为绝对路径
-        if not Path(self.database_path).is_absolute():
-            self.database_path = str(Path(self.data_dir) / Path(self.database_path).name)
+        # 数据库路径: 如果是相对路径则放在数据目录中
+        db_path = Path(self.database_path)
+        if not db_path.is_absolute():
+            self.database_path = str(data_path / db_path.name)
+        else:
+            # 绝对路径也需要确保父目录存在
+            db_path.parent.mkdir(parents=True, exist_ok=True)
         
         # 确保报告目录存在
-        Path(self.output.report_dir).mkdir(parents=True, exist_ok=True)
+        report_path = Path(self.output.report_dir)
+        if not report_path.is_absolute():
+            report_path = data_path / "reports"
+        report_path.mkdir(parents=True, exist_ok=True)
+        self.output.report_dir = str(report_path)
 
 
 def load_settings(config_path: Optional[str] = None) -> Settings:
