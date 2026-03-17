@@ -653,7 +653,7 @@ def report(ctx: click.Context, fmt: str, output: Optional[str]):
 # ============================================
 
 @cli.command()
-@click.option("--severity", type=click.Choice(["critical", "high", "medium", "low"]))
+@click.option("--severity", help="严重程度 (CRITICAL/HIGH/MEDIUM/LOW, 大小写不敏感)")
 @click.option("--since", help="起始日期 (YYYY-MM-DD)")
 @click.option("--keyword", help="关键词搜索")
 @click.option("--limit", default=100, help="返回数量限制")
@@ -687,9 +687,14 @@ def query(
         with db.session() as session:
             query = session.query(CVE)
             
-            # 应用过滤条件
+            # 应用过滤条件 - 大小写无关
             if severity:
-                query = query.filter(CVE.severity == severity.upper())
+                valid_severities = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
+                severity_upper = severity.upper()
+                if severity_upper not in valid_severities:
+                    console.print(f"[red]错误: 无效的严重程度 '{severity}', 有效值: CRITICAL, HIGH, MEDIUM, LOW[/red]")
+                    return
+                query = query.filter(CVE.severity == severity_upper)
             
             if since:
                 from datetime import datetime
