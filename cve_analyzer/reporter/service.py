@@ -63,7 +63,7 @@ class ReportService:
                 report.patches.append(patch_info)
             
             # 添加 Kconfig 分析
-            if cve.kconfig_analyses:
+            if hasattr(cve, 'kconfig_analyses') and cve.kconfig_analyses:
                 kconfig = cve.kconfig_analyses[0]  # 取第一个
                 report.kconfig_analysis = KconfigInfo(
                     trigger_configs=kconfig.trigger_configs or [],
@@ -73,7 +73,7 @@ class ReportService:
                 )
             
             # 添加补丁历史
-            for history in cve.patch_history:
+            for history in getattr(cve, 'patch_history', []):
                 history_info = HistoryInfo(
                     change_type=history.change_type or "",
                     commit_hash=history.commit_hash or "",
@@ -85,7 +85,7 @@ class ReportService:
                 report.patch_history.append(history_info)
             
             # 添加检测状态
-            for status in cve.patch_statuses:
+            for status in getattr(cve, 'patch_statuses', []):
                 status_info = DetectionStatusInfo(
                     target_version=status.target_version,
                     status=status.status or "unknown",
