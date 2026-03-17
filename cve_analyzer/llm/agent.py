@@ -67,35 +67,35 @@ class CodeAnalysisAgent:
         """获取补丁代码"""
         results = []
         
-        for patch in patches[:3]:  # 只查前3个
+        for patch in patches[:2]:  # 只查前2个，减少超时
             commit = patch['commit']
             short = patch.get('commit_hash_short', commit[:12])
             
             results.append(f"\n=== 补丁: {short} ===")
             
-            # 1. 检查 commit 是否存在
+            # 1. 检查 commit 是否存在 (快速)
             result = subprocess.run(
-                ["git", "log", "--oneline", "-1", commit],
+                ["git", "log", "-1", "--oneline", commit],
                 cwd=self.kernel_path,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=5
             )
             
             if result.returncode == 0 and result.stdout:
                 results.append(f"✓ Commit 存在于本地仓库")
                 results.append(f"  {result.stdout.strip()}")
                 
-                # 2. 获取详细 diff
+                # 2. 获取文件列表
                 result = subprocess.run(
-                    ["git", "show", commit, "--stat", "--format=%H%n%s%n%b"],
+                    ["git", "show", "--stat", "--format=", commit],
                     cwd=self.kernel_path,
                     capture_output=True,
                     text=True,
-                    timeout=30
+                    timeout=10
                 )
-                if result.returncode == 0:
-                    results.append(f"\n代码变更:\n{result.stdout[:2000]}")
+                if result.returncode == 0 and result.stdout:
+                    results.append(f"\n修改的文件:\n{result.stdout[:500]}")
             else:
                 results.append(f"✗ Commit 不存在于本地仓库")
         
