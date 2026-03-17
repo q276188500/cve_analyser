@@ -410,7 +410,7 @@ def analyze(ctx: click.Context, cve_id: str, deep: bool):
 @click.argument("cve-id")
 @click.option("--kernel-path", type=click.Path(exists=True), help="内核源码路径")
 @click.option("--version", help="内核版本号")
-@click.option("--detection", type=click.Choice(["hash", "content", "both"]), help="检测策略")
+@click.option("--detection", type=click.Choice(["hash", "content", "both"]), default="both", help="检测策略")
 @click.pass_context
 def patch_status(
     ctx: click.Context,
@@ -429,13 +429,59 @@ def patch_status(
     - content: 模糊内容匹配
     - both: 两者结合 (默认)
     """
-    console.print(f"[yellow]检测补丁状态 {cve_id} - 待实现 (Phase 4)[/yellow]")
-    if kernel_path:
-        console.print(f"内核路径: {kernel_path}")
-    if version:
-        console.print(f"目标版本: {version}")
-    if detection:
-        console.print(f"检测策略: {detection}")
+    from cve_analyzer.core.database import get_db
+    from cve_analyzer.core.models import CVE, Patch
+    
+    db = get_db()
+    
+    with db.session() as session:
+        # 获取 CVE 及其补丁信息
+        cve = session.query(CVE).filter(CVE.id == cve_id.upper()).first()
+        
+        if not cve:
+            console.print(f"[red]未找到 CVE: {cve_id}[/red]")
+            return
+        
+        console.print("\n[bold cyan]═══════════════════════════════════════[/bold cyan]")
+        console.print(f"[bold]  补丁检测: {cve.id}[/bold]")
+        console.print("[bold cyan]═══════════════════════════════════════[/bold cyan]")
+        
+        # 目标版本
+        if version:
+            console.print(f"目标内核版本: {version}")
+        
+        # 检测策略
+        console.print(f"检测策略: {detection or 'both'}")
+        
+        # 补丁信息
+        patches = session.query(Patch).filter(Patch.cve_id == cve.id).all()
+        
+        if not patches:
+            console.print("\n[yellow]该 CVE 暂无补丁信息[/yellow]")
+            console.print("提示: 补丁信息需要在 sync 时从数据源获取")
+            return
+        
+        console.print(f"\n[bold]找到 {len(patches)} 个补丁记录:[/bold]")
+        
+        for i, patch in enumerate(patches[:5], 1):
+            console.print(f"\n  [{i}] {patch.commit_hash[:12]}...")
+            if patch.commit_hash_short:
+                console.print(f"      短哈希: {patch.commit_hash_short}")
+            if patch.description:
+                desc = patch.description[:100]
+                console.print(f"      描述: {desc}...")
+        
+        # 检测状态
+        console.print("\n[bold]检测结果:[/bold]")
+        
+        if kernel_path:
+            console.print(f"[yellow]⚠ 内核源码检测需要配置内核路径: {kernel_path}[/yellow]")
+            console.print("提示: 使用 --kernel-path 指定内核源码进行实际检测")
+        else:
+            console.print("[dim]未指定内核源码路径，仅显示补丁信息[/dim]")
+            console.print("提示: 使用 --kernel-path /path/to/linux 进行实际检测")
+        
+        console.print()
 
 
 # ============================================
