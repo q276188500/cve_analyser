@@ -349,9 +349,62 @@ def analyze(ctx: click.Context, cve_id: str, deep: bool):
     - 影响版本分析
     - 受影响文件和函数
     """
-    console.print(f"[yellow]分析 CVE {cve_id} - 待实现 (Phase 3)[/yellow]")
-    if deep:
-        console.print("深度分析模式")
+    from cve_analyzer.core.database import get_db
+    from cve_analyzer.core.models import CVE
+    
+    db = get_db()
+    
+    with db.session() as session:
+        cve = session.query(CVE).filter(CVE.id == cve_id.upper()).first()
+        
+        if not cve:
+            console.print(f"[red]未找到 CVE: {cve_id}[/red]")
+            return
+        
+        # 显示基本信息
+        console.print("\n[bold cyan]═══════════════════════════════════════[/bold cyan]")
+        console.print(f"[bold]  {cve.id}[/bold]")
+        console.print("[bold cyan]═══════════════════════════════════════[/bold cyan]")
+        
+        # 严重程度和分数
+        severity = cve.severity or "UNKNOWN"
+        severity_color = {
+            "CRITICAL": "red bold",
+            "HIGH": "red",
+            "MEDIUM": "yellow",
+            "LOW": "green",
+        }.get(severity, "white")
+        
+        cvss = cve.cvss_score
+        cvss_str = f" CVSS {cvss}" if cvss else ""
+        console.print(f"[{severity_color}]严重程度: {severity}{cvss_str}[/{severity_color}]")
+        
+        # 日期
+        if cve.published_date:
+            console.print(f"发布日期: {cve.published_date.strftime('%Y-%m-%d')}")
+        if cve.last_modified:
+            console.print(f"更新时间: {cve.last_modified.strftime('%Y-%m-%d')}")
+        
+        # 描述
+        console.print("\n[bold]漏洞描述:[/bold]")
+        desc = cve.description or "无描述"
+        # 限制描述长度
+        if len(desc) > 500:
+            desc = desc[:500] + "..."
+        console.print(f"  {desc}")
+        
+        # 参考链接
+        if cve.references:
+            console.print("\n[bold]参考链接:[/bold]")
+            for ref in cve.references[:5]:  # 最多显示 5 个
+                console.print(f"  - {ref.url}")
+        
+        # 受影响版本
+        if cve.affected_versions:
+            console.print("\n[bold]受影响版本:[/bold]")
+            console.print(f"  {cve.affected_versions}")
+        
+        console.print()
 
 
 # ============================================
