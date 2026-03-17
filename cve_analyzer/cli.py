@@ -1282,10 +1282,19 @@ def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], output: s
     
     db = Database()
     with db.session() as session:
-        cve = session.query(CVE).filter_by(id=cve_id).first()
+        cve = session.query(CVE).filter(CVE.id == cve_id.upper()).first()
         if not cve:
             console.print(f"[red]错误: CVE {cve_id} 不存在[/red]")
             return
+        
+        # 复制需要的数据，避免 session 问题
+        cve_data = {
+            'id': cve.id,
+            'description': cve.description,
+            'severity': cve.severity,
+            'cvss_score': cve.cvss_score,
+            'published_date': cve.published_date,
+        }
     
     # 初始化 LLM
     try:
@@ -1299,7 +1308,7 @@ def llm_analyze(ctx, cve_id: str, provider: str, model: Optional[str], output: s
     with console.status(f"[bold green]正在使用 {provider} 分析 {cve_id}..."):
         try:
             # 使用 asyncio 运行异步函数
-            analysis = asyncio.run(analyzer.analyze_cve(cve))
+            analysis = asyncio.run(analyzer.analyze_cve(cve_data))
         except Exception as e:
             console.print(f"[red]分析失败: {e}[/red]")
             return
@@ -1401,9 +1410,16 @@ async def llm_batch_analyze(ctx, cve_list: str, provider: str, model: Optional[s
     
     with db.session() as session:
         for cve_id in cve_ids:
-            cve = session.query(CVE).filter_by(id=cve_id).first()
+            cve = session.query(CVE).filter(CVE.id == cve_id.upper()).first()
             if cve:
-                cve_data.append((cve_id, cve))
+                # 复制数据避免 session 问题
+                cve_data.append({
+                    'id': cve.id,
+                    'description': cve.description,
+                    'severity': cve.severity,
+                    'cvss_score': cve.cvss_score,
+                    'published_date': cve.published_date,
+                })
     
     if not cve_data:
         console.print("[red]错误: 未找到匹配的 CVE[/red]")
