@@ -9,7 +9,7 @@ from cve_analyzer.llm.base import (
     LLMResponse,
     OpenAIProvider,
     ClaudeProvider,
-    OllamaProvider,
+    MinimaxProvider,
     LLMFactory,
 )
 
@@ -25,7 +25,7 @@ __all__ = [
     'LLMResponse',
     'OpenAIProvider',
     'ClaudeProvider',
-    'OllamaProvider',
+    'MinimaxProvider',
     'LLMFactory',
     'LLMVulnerabilityAnalyzer',
     'LLMReportGenerator',
