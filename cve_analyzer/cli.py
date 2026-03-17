@@ -853,17 +853,16 @@ def check_fix(ctx: click.Context, cve_id: str, kernel_path: Optional[str], provi
         console.print("[red]错误: check-fix 需要指定 --kernel-path[/red]")
         return
     
-    console.print("\n[cyan]正在使用智能 Agent 分析...[/cyan]")
+    console.print("\n[cyan]正在使用 LLM 分析代码...[/cyan]")
     
     try:
         from cve_analyzer.llm import LLMFactory
-        from cve_analyzer.llm.agent import CodeAnalysisAgent
+        from cve_analyzer.llm.agent import analyze_patch_sync
         
         llm = LLMFactory.create(provider, model=model)
-        agent = CodeAnalysisAgent(llm, kernel_path)
         
-        with console.status("[bold green]Agent 正在分析代码..."):
-            result = asyncio.run(agent.analyze(cve_id, patch_info))
+        with console.status("[bold green]正在获取代码并分析..."):
+            result = analyze_patch_sync(llm, kernel_path, cve_id, patch_info)
         
         console.print("\n[bold green]═══════════════════════════════════════[/bold green]")
         console.print("[bold]分析结果:[/bold]")
