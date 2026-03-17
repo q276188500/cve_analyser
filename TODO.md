@@ -1,22 +1,38 @@
 # CVE Analyzer 待实现功能
 
 ## 待测试功能 (已实现 CLI)
+- [x] version - 版本信息
+- [x] init - 初始化环境
+- [x] query - 查询 CVE
+- [x] sync - 同步 CVE 数据
+- [x] analyze - 分析 CVE
+- [x] patch-status - 补丁检测 (显示部分，需完善)
+- [ ] patch-status - 内核源码检测 (需完善)
+- [ ] kconfig - Kconfig 分析 (待实现)
 - [ ] patch-history - 追踪补丁历史
-- [ ] kconfig - 分析 Kconfig 配置依赖
 - [ ] report - 生成报告
 - [ ] llm-analyze - 大模型分析
 
 ## 待开发功能
 
-### 1. 补丁信息抓取
+### 1. patch-status 内核源码检测
 - **优先级**: 高
-- **描述**: sync 命令需要添加补丁抓取功能，从 Git Security 获取补丁 commit
-- **待添加选项**: `--fetch-patches`
-- **数据源**: git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
-- **状态**: 未实现
+- **描述**: 基于内核源码检测补丁是否已应用
+- **依赖**: 需要内核源码目录
+- **功能**:
+  - 使用 CommitHashDetector 检测 commit 是否存在
+  - 使用 FileHashDetector 检测文件修改
+  - 使用 ContentMatcher 检测代码特征
+- **状态**: CLI 有接口，检测逻辑需完善
 
-### 2. 暂无补丁数据的 CVE 测试
-- **说明**: 当前 487 条 CVE 都无补丁信息，需要有补丁的 CVE 来测试 patch-status 功能
+### 2. kconfig 配置分析
+- **优先级**: 中
+- **描述**: 分析 CVE 触发的内核配置依赖
+- **依赖**: 需要 .config 配置文件
+- **状态**: 待实现
+
+### 3. 补丁信息抓取
+- **状态**: ✅ 已完成 (2251 个补丁)
 
 ---
 
