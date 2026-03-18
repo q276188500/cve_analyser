@@ -127,46 +127,66 @@ git diff HEAD -- ${AFFECTED_FILE}
 
 **我不转发给 LLM，而是以内核领域专家的身份直接给出专业判断。**
 
+**报告格式要求（分段式，人类阅读友好）**：
+
+```json
+{
+  "cve_id": "CVE-2026-23233",
+  "severity": "medium",
+  "cvss": "N/A",
+  "published_date": "2026-03-04",
+
+  "section_vulnerability": {
+    "title": "漏洞类型",
+    "content": "漏洞的详细描述"
+  },
+
+  "section_affected": {
+    "title": "受影响文件",
+    "content": "受影响的文件列表"
+  },
+
+  "section_kconfig": {
+    "title": "Kconfig 检查",
+    "items": [
+      { "key": "CONFIG_XXX", "value": "enabled/disabled", "status": "affected/not_affected" }
+    ],
+    "结论": "是否受影响"
+  },
+
+  "section_analysis": {
+    "title": "影响评估",
+    "items": [
+      { "dimension": "功能影响", "level": "high/medium/low", "description": "描述" },
+      { "dimension": "性能影响", "level": "high/medium/low", "description": "描述" },
+      { "dimension": "可靠性影响", "level": "high/medium/low", "description": "描述" }
+    ]
+  },
+
+  "section_knowledge": {
+    "title": "知识库匹配",
+    "matched": "匹配的规则ID",
+    "description": "规则描述"
+  },
+
+  "section_recommendation": {
+    "title": "合入建议",
+    "action": "merge/review/defer",
+    "reason": "建议理由"
+  },
+
+  "metadata": {
+    "analyzed_by": "OpenCLAW (内核专家)",
+    "analyzed_at": "2026-03-18T15:00:00Z"
+  }
+}
 ```
-╔════════════════════════════════════════════════════════════╗
-║          🔍 CVE 漏洞分析报告                              ║
-╚════════════════════════════════════════════════════════════╝
 
-📋 CVE: {cve_id}
-📊 严重程度: {severity} (CVSS: {cvss})
-📅 披露日期: {date}
-
-📌 漏洞描述
-   {description}
-
-📌 Patch 信息
-   文件: {files}
-   变更: +{additions} -{deletions}
-
-📌 代码仓查询结果
-   文件存在: {yes/no}
-   Patch 状态: {已应用/未应用/部分应用}
-
-📌 Kconfig 信息
-   {kconfig_rules}
-
-📌 初步分析
-   问题类型: {problem_type}
-   可能影响: {impact}
-
-📌 知识库检索结果
-   {knowledge_matches}
-
-📌 综合评估
-   功能影响: {功能等级} {描述}
-   性能影响: {性能等级} {描述}
-   可靠性影响: {可靠性等级} {描述}
-
-📌 合入建议
-   ✅ 建议合入 / ⚠️ 需确认 / ❌ 暂不合入
-   
-   理由: {reason}
-```
+**格式要点**：
+- 采用分段式 `section_` 结构
+- 每个维度独立评估（功能/性能/可靠性）
+- level 使用 high/medium/low
+- 必须有 metadata 标记分析者和时间
 
 #### Step 4.6: 报告归档
 
