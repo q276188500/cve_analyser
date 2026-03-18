@@ -24,12 +24,30 @@
 - 时间段（如：2024-01-01 至 2024-12-31）
 - 或 CVE ID（如：CVE-2024-XXXX）
 
-**数据获取（调用 cve-analyzer）**：
+**数据获取**：
+
+**【重要】数据获取流程（必须遵循）**：
+
+1. **优先从本地 cve-analyzer 获取**：
+   - 检查 cve-analyzer 数据库是否有所需时间段的数据
+   - 路径: `tools/cve-analyzer/data/cve-analyzer.db`
+   - 命令: `sqlite3 cve-analyzer.db "SELECT * FROM cves WHERE ..."`
+
+2. **如果本地没有数据，必须从 NVD 获取**：
+   - 使用 cve-analyzer 的 sync 命令同步数据
+   - 命令: `cd tools/cve-analyzer && python start.py sync --since=YYYY-MM-DD --until=YYYY-MM-DD`
+   - 或直接调用 NVD API:
+     ```bash
+     curl "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={CVE_ID}"
+     curl "https://services.nvd.nist.gov/rest/json/cves/2.0?pubStartDate=YYYY-MM-DD&pubEndDate=YYYY-MM-DD"
+     ```
+
+**获取的数据**：
 - CVE 漏洞描述
 - CVE 漏洞关联的修复 patch
 - CVE 漏洞关联的 Kconfig（内核配置依赖）
 
-**数据来源**：cve-analyzer 统一获取与管理
+**数据来源**：cve-analyzer → NVD → 统一管理
 
 ---
 
@@ -334,15 +352,124 @@ git diff HEAD -- ${AFFECTED_FILE}
 
 ### cve-analyzer
 
-**用途**：获取 CVE 数据、patch、Kconfig
+**用途**：获取 CVE 数据、patch、Kconfig、补丁状态检测
 
-**路径**：`~/workspace/projects/cve-analyzer`
+**路径**：`tools/cve-analyzer`
 
 **调用方式**：
 ```bash
-cd ~/workspace/projects/cve-analyzer
-python start.py sync --since=2024-01-01 --until=2024-12-31
-python start.py analyze CVE-2024-XXXX
+cd tools/cve-analyzer
+python -m cve_analyzer.cli <command>
+```
+
+**【重要】以下命令必须知道并灵活使用**：
+
+#### 1. sync - 同步 CVE 数据
+```bash
+# 同步指定时间段
+python -m cve_analyzer.cli sync --since=2025-12-01 --until=2025-12-31
+
+# 同步最近 30 天
+python -m cve_analyzer.cli sync
+
+# 断点续传
+python -m cve_analyzer.cli sync --resume
+```
+
+#### 2. query - 查询本地数据库
+```bash
+# 按严重程度查询
+python -m cve_analyzer.cli query --severity=high --limit=50
+
+# 按关键词搜索
+python -m cve_analyzer.cli query --keyword="use-after-free" --limit=20
+
+# 按日期查询
+python -m cve_analyzer.cli query --since=2026-01-01 --format=json
+
+# 组合查询
+python -m cve_analyzer.cli query --severity=critical --keyword=linux --limit=10
+```
+
+#### 3. analyze - 分析单个 CVE
+```bash
+# 基本分析
+python -m cve_analyzer.cli analyze CVE-2024-1234
+
+# 深度分析
+python -m cve_analyzer.cli analyze CVE-2024-1234 --deep
+```
+
+#### 4. patch-status - 检测补丁状态
+```bash
+# 检测补丁是否已应用
+python -m cve_analyzer.cli patch-status CVE-2024-1234 --kernel-path=/path/to/linux
+
+# 指定检测策略
+python -m cve_analyzer.cli patch-status CVE-2024-1234 --kernel-path=/path/to/linux --detection=both
+```
+
+#### 5. kconfig - Kconfig 依赖分析
+```bash
+# 分析 CVE 的 Kconfig 依赖
+python -m cve_analyzer.cli kconfig CVE-2024-1234
+
+# 对比指定配置文件
+python -m cve_analyzer.cli kconfig CVE-2024-1234 --config=/path/to/.config
+
+# 审计当前配置
+python -m cve_analyzer.cli kconfig --audit --config=/path/to/.config
+```
+
+#### 6. extract-patches - 提取补丁信息
+```bash
+# 提取所有 CVE 的补丁
+python -m cve_analyzer.cli extract-patches
+
+# 只处理指定 CVE
+python -m cve_analyzer.cli extract-patches --cve-id=CVE-2024-1234
+```
+
+#### 7. generate-kconfig-rule - 生成 Kconfig 规则
+```bash
+# 生成指定 CVE 的 Kconfig 规则
+python -m cve_analyzer.cli generate-kconfig-rule CVE-2024-1234
+
+# 批量生成
+python -m cve_analyzer.cli batch-generate-kconfig --severity=high --limit=50
+```
+
+#### 8. llm-analyze - LLM 分析
+```bash
+# 使用 LLM 分析
+python -m cve_analyzer.cli llm-analyze CVE-2024-1234
+
+# 指定 LLM 提供商
+python -m cve_analyzer.cli llm-analyze CVE-2024-1234 --provider=minimax --model=MiniMax-M2.1
+```
+
+#### 9. patch-history - 补丁历史追踪
+```bash
+# 查看补丁历史
+python -m cve_analyzer.cli patch-history CVE-2024-1234
+
+# 显示 revert
+python -m cve_analyzer.cli patch-history CVE-2024-1234 --show-reverts
+```
+
+#### 10. report - 生成报告
+```bash
+# 生成 Markdown 报告
+python -m cve_analyzer.cli report CVE-2024-1234 --format=markdown
+
+# 生成 JSON 报告
+python -m cve_analyzer.cli report CVE-2024-1234 --format=json --output=./reports
+```
+
+#### 11. check-fix - 检查是否已修复
+```bash
+# 检查是否已修复
+python -m cve_analyzer.cli check-fix CVE-2024-1234 --kernel-path=/path/to/linux
 ```
 
 ---
