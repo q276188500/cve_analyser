@@ -1,0 +1,17 @@
+id: "rule-005"
+type: "reference"
+title: "CVE-2021-43287 修复参考"
+description: |
+  CVE-2021-43287 是 netfilter 模块的 use-after-free 漏洞。
+  涉及 netfilter 的 patch 可以参考此 CVE 的修复模式。
+severity: "low"
+domain: "security_reference"
+tags: 
+  - "CVE"
+  - "netfilter"
+  - "use-after-free"
+cve_id: "CVE-2021-43287"
+affected_paths:
+  - "net/netfilter/*"
+  - "net/ipv4/netfilter/*"
+fix_pattern: "在释放后设置NULL指针，避免UAF"

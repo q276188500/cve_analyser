@@ -1,0 +1,19 @@
+id: "rule-002"
+type: "constraint"
+title: "net/core/ 下禁止新增 GFP_ATOMIC 内存分配"
+description: |
+  GFP_ATOMIC 可能在中断上下文中导致分配失败，引发内核崩溃。
+  新增内存分配必须使用 GFP_KERNEL 或 GFP_NOFS。
+severity: "high"
+domain: "kernel_memory"
+tags: 
+  - "内存管理"
+  - "GFP"
+  - "中断上下文"
+affected_paths:
+  - "net/core/*"
+forbidden_flags:
+  - "GFP_ATOMIC"
+required_flags:
+  - "GFP_KERNEL"
+  - "GFP_NOFS"
