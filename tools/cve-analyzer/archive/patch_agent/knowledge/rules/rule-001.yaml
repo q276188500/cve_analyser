@@ -1,0 +1,17 @@
+id: "rule-001"
+type: "constraint"
+title: "禁止修改 fs/namespace.c"
+description: |
+  fs/namespace.c 是命名空间管理的核心文件，任何修改都需要经过严格的安全 review。
+  禁止直接合入，必须由安全团队批准。
+severity: "critical"
+domain: "kernel_security"
+tags: 
+  - "命名空间"
+  - "安全"
+  - "fs"
+affected_paths:
+  - "fs/namespace.c"
+  - "fs/mount.h"
+requires_approval: true
+approval_role: "security_team"

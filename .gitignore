@@ -6,3 +6,10 @@ __pycache__/
 venv/
 .venv/
 *.log
+cve-analyzer/data/*.db
+cve-analyzer/data/*.db-*
+cve-analyzer/reports/
+cve-analyzer/.pytest_cache/
+cve-analyzer/__pycache__/
+cve-analyzer/*/__pycache__/
+cve-analyzer/*/*/__pycache__/

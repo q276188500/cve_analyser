@@ -1,0 +1,18 @@
+id: "rule-004"
+type: "context"
+title: "drivers/virtio/ 与容器安全强相关"
+description: |
+  virtio 驱动是容器运行时的核心依赖，任何变更都可能影响容器安全隔离。
+  分析 virtio 相关 patch 时需要关联容器安全上下文。
+severity: "medium"
+domain: "container_security"
+tags: 
+  - "virtio"
+  - "容器"
+  - "安全隔离"
+affected_paths:
+  - "drivers/virtio/*"
+  - "virt/*"
+related_domains:
+  - "container_runtime"
+  - "kernel_isolation"
