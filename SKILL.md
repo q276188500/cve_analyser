@@ -66,24 +66,25 @@
 
 ### Step 4: 详细评估
 
-使用 OpenCLAW Agent 自规划能力进行深度分析。
+**重要**：由 OpenCLAW Agent（即"我"）主导整个分析过程，LLM 只是辅助工具。
 
-**重要**：每个 CVE 必须独立分析，不能批量处理。
+**每个 CVE 必须独立分析**，不能批量处理。
 
 #### Step 4.1: 获取 CVE 详细信息
 
+由"我"执行：
 - 从 NVD 获取完整 CVE 信息（CVSS、描述、引用等）
 - 从 cve-analyzer 获取关联的 patch 内容
 - 获取 CVE 影响的文件列表
 
 #### Step 4.2: 代码仓查询
 
-**必须查询代码仓实际代码**：
+**必须由"我"主动查询代码仓**：
 - 检查 CVE 影响文件是否存在于代码仓中
 - 对比 patch 与代码仓当前版本的差异
 - 检查 patch 是否已应用
 
-**查询命令示例**：
+**示例查询**（由我执行）：
 ```bash
 # 检查文件是否存在
 ls -la ${KERNEL_REPO}/${AFFECTED_FILE}
@@ -91,28 +92,36 @@ ls -la ${KERNEL_REPO}/${AFFECTED_FILE}
 # 检查 patch 是否已应用
 cd ${KERNEL_REPO}
 git log --oneline --all -- ${AFFECTED_FILE} | head -10
+git blame ${AFFECTED_FILE} | grep -i "fix\|cve"
 
-# 查看文件当前版本
-git show HEAD:${AFFECTED_FILE} | head -50
+# 对比差异
+git diff HEAD -- ${AFFECTED_FILE}
 ```
 
 #### Step 4.3: Patch 代码分析
 
-- 针对**每一个 patch** 找到其对应的代码文件
-- 分析该 patch 解决的问题类型
+由"我"分析：
+- 针对每一个 patch 找到对应的代码文件
+- 分析 patch 解决的问题类型
 - 分析可能造成的影响
+
+**必要时调用 LLM** 获取对代码变更的专业理解。
 
 #### Step 4.4: 领域知识库检索
 
-- 检索 SKILL/knowledge/ 中的规则
-- 综合分析该 patch 造成的：
-  - 功能影响
-  - 性能影响
-  - 可靠性影响
+由"我"检索：
+- 读取 SKILL/knowledge/ 中的规则
+- 对比当前 CVE 是否匹配已知规则
+- 综合评估功能、性能、可靠性影响
 
-#### Step 4.5: 生成单个 CVE 分析报告
+#### Step 4.5: 综合判断与报告生成
 
-**每个 CVE 独立生成报告**，报告格式：
+由"我"完成：
+- 综合以上所有信息
+- 给出合入建议（默认合入，除非有充分理由）
+- 生成格式化的分析报告
+
+**注意**：不是把问题丢给 LLM 就完事了，而是"我"在分析过程中主动使用 LLM 来获取专业意见，最终判断由"我"做出。
 
 ```
 ╔════════════════════════════════════════════════════════════╗
