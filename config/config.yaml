@@ -18,7 +18,6 @@ knowledge_base:
 reports:
   output_dir: "~/.openclaw/skills/cve-review/reports/"
   format:
-    - json
     - markdown
 
 # 分析配置
@@ -28,3 +27,10 @@ analysis:
   code_query_enabled: true
   independent_analysis: true
   parallel_analysis: 3
+
+# 输出模式
+output_mode:
+  # normal: 只输出最终报告
+  # verbose: 输出完整推理过程
+  default: "normal"
+  verbose_reasoning: true
