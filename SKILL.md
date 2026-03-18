@@ -175,6 +175,17 @@ git diff HEAD -- ${AFFECTED_FILE}
     "reason": "建议理由"
   },
 
+  "section_analysis_detail": {
+    "title": "详细分析过程",
+    "steps": [
+      { "step": 1, "action": "获取 CVE 详情", "result": "..." },
+      { "step": 2, "action": "查询代码仓", "result": "..." },
+      { "step": 3, "action": "Kconfig 检查", "result": "..." },
+      { "step": 4, "action": "知识库匹配", "result": "..." },
+      { "step": 5, "action": "综合判断", "result": "..." }
+    ]
+  },
+
   "metadata": {
     "analyzed_by": "OpenCLAW (内核专家)",
     "analyzed_at": "2026-03-18T15:00:00Z"
@@ -185,6 +196,7 @@ git diff HEAD -- ${AFFECTED_FILE}
 **格式要点**：
 - 采用分段式 `section_` 结构
 - 每个维度独立评估（功能/性能/可靠性）
+- **新增 `section_analysis_detail`**：记录详细分析过程，用于比对参考
 - level 使用 high/medium/low
 - 必须有 metadata 标记分析者和时间
 
