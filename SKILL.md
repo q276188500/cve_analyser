@@ -502,7 +502,7 @@ kernel_repo:
 
 # cve-analyzer 配置
 cve_analyzer:
-  path: "~/workspace/projects/cve-analyzer"
+  path: "tools/cve-analyzer"
 
 # 知识库配置
 knowledge_base:

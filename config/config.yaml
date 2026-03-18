@@ -2,21 +2,21 @@
 
 # 代码仓配置
 kernel_repo:
-  path: "~/workspace/projects/my-kernel"
+  path: "~/workspace/linux-kernel/linux-5.10"
   branch: "main"
 
 # cve-analyzer 配置
 cve_analyzer:
-  path: "~/workspace/projects/cve-analyzer"
+  path: "tools/cve-analyzer"
 
 # 知识库配置
 knowledge_base:
-  path: "~/.openclaw/skills/cve-review/knowledge/"
-  kconfig_rules: "~/.openclaw/skills/cve-review/knowledge/kconfig/"
+  path: "knowledge/"
+  kconfig_rules: "knowledge/kconfig/"
 
 # 报告配置
 reports:
-  output_dir: "~/.openclaw/skills/cve-review/reports/"
+  output_dir: "reports/"
   format:
     - markdown
 
