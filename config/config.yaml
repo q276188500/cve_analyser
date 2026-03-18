@@ -1,0 +1,20 @@
+# CVE Review SKILL 配置
+
+# 代码仓配置
+kernel_repo:
+  path: "~/workspace/projects/my-kernel"
+  branch: "main"
+
+# cve-analyzer 配置
+cve_analyzer:
+  path: "~/workspace/projects/cve-analyzer"
+
+# 知识库配置
+knowledge_base:
+  path: "~/.openclaw/skills/cve-review/knowledge/"
+
+# 分析配置
+analysis:
+  default_action: "merge"
+  require_reason_on_defer: true
+  parallel_analysis: 3

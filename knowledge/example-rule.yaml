@@ -1,0 +1,14 @@
+# 示例知识库规则
+# 实际使用时替换为真实的领域知识
+
+id: "example-001"
+type: "constraint"
+title: "示例规则"
+description: "这是一个示例规则"
+severity: "high"
+domain: "kernel_security"
+affected_paths:
+  - "net/*"
+tags:
+  - "网络安全"
+  - "内核"
