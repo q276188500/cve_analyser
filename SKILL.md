@@ -54,19 +54,24 @@ LLM 只是辅助查阅工具，不是分析主导者。
 
 ## 完整流程
 
-### Step 1: 输入与数据获取
+### Step 1: 数据获取
 
 **输入**：时间段 或 CVE ID
 
-**数据获取流程**：
-1. 优先从本地 `tools/cve-analyzer/data/cve-analyzer.db` 查询
-2. 如果没有，使用 sync 命令同步：
+**【强制】数据获取流程**：
+1. 先用 cve-analyzer 查询：
    ```bash
    cd tools/cve-analyzer
-   python -m cve_analyzer.cli sync --since=YYYY-MM-DD --until=YYYY-MM-DD
+   python -m cve_analyzer.cli query --since=2025-12-01 --until=2025-12-31
+   ```
+2. 如果没有，执行 sync：
+   ```bash
+   python -m cve_analyzer.cli sync --since=2025-12-01 --until=2025-12-31
    ```
 
-**获取数据**：CVE 描述、patch、Kconfig
+**禁止**：
+- ❌ 直接用 curl 从 NVD 获取
+- ❌ 跳过 cve-analyzer
 
 ---
 
@@ -92,6 +97,12 @@ LLM 只是辅助查阅工具，不是分析主导者。
 
 **【重要】由我（OpenCLAW 内核专家）主导整个分析过程。**
 
+**【强制约束】禁止批量分析**：
+- ❌ 禁止一次性生成多个报告
+- ✅ 必须一个一个来
+- ✅ 完成当前 CVE 的所有步骤后，才能开始下一个
+- ✅ 每个 CVE 必须完整执行 Step 4.1 ~ 4.5
+
 **开始前打印进度**：
 ```
 ══════════════════════════════════════════════════════════════
@@ -109,21 +120,41 @@ LLM 只是辅助查阅工具，不是分析主导者。
 
 #### Step 4.1: 获取 CVE 详情
 
-- 从 NVD/cve-analyzer 获取完整信息
-- 获取受影响文件列表
+**【强制】必须用 cve-analyzer 查询**：
+```bash
+# 先查询 CVE 是否在数据库
+python -m cve_analyzer.cli query --keyword=CVE-2025-40214
+
+# 如果没有，同步
+python -m cve_analyzer.cli sync --since=2025-12-01 --until=2025-12-31
+```
+
+**禁止**：
+- ❌ 直接用 curl 从 NVD 获取
+- ❌ 跳过 cve-analyzer
+
+**获取**：
+- CVE 完整描述
+- 受影响文件列表
+- 关联 patch
 
 #### Step 4.2: 代码仓查询（必须执行）
 
+**【强制】每个 CVE 必须执行代码查询**：
 ```bash
 # 检查文件是否存在
 ls -la ${KERNEL_REPO}/${AFFECTED_FILE}
 
-# 查看相关 commit
-git log --oneline -10 -- ${AFFECTED_FILE}
+# 查看问题函数
+grep -n "FUNCTION_NAME" ${KERNEL_REPO}/${AFFECTED_FILE}
 
-# 对比差异
-git diff HEAD -- ${AFFECTED_FILE}
+# 查看 commit 历史
+git log --oneline -10 -- ${AFFECTED_FILE}
 ```
+
+**禁止**：
+- ❌ 不读取代码，只看 CVE 描述就下结论
+- ❌ 用 curl 代替 git 查询
 
 #### Step 4.3: Patch 分析
 
