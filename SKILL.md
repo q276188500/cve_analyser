@@ -127,79 +127,82 @@ git diff HEAD -- ${AFFECTED_FILE}
 
 **我不转发给 LLM，而是以内核领域专家的身份直接给出专业判断。**
 
-**报告格式要求（分段式，人类阅读友好）**：
+**报告格式要求（Markdown 格式，人类和 Agent 都方便处理）**：
 
-```json
-{
-  "cve_id": "CVE-2026-23233",
-  "severity": "medium",
-  "cvss": "N/A",
-  "published_date": "2026-03-04",
+```markdown
+# CVE 分析报告: {cve_id}
 
-  "section_vulnerability": {
-    "title": "漏洞类型",
-    "content": "漏洞的详细描述"
-  },
+## 基本信息
 
-  "section_affected": {
-    "title": "受影响文件",
-    "content": "受影响的文件列表"
-  },
+| 字段 | 值 |
+|------|-----|
+| CVE ID | {cve_id} |
+| 严重程度 | {severity} |
+| CVSS | {cvss} |
+| 披露日期 | {published_date} |
 
-  "section_kconfig": {
-    "title": "Kconfig 检查",
-    "items": [
-      { "key": "CONFIG_XXX", "value": "enabled/disabled", "status": "affected/not_affected" }
-    ],
-    "结论": "是否受影响"
-  },
+## 漏洞类型
 
-  "section_analysis": {
-    "title": "影响评估",
-    "items": [
-      { "dimension": "功能影响", "level": "high/medium/low", "description": "描述" },
-      { "dimension": "性能影响", "level": "high/medium/low", "description": "描述" },
-      { "dimension": "可靠性影响", "level": "high/medium/low", "description": "描述" }
-    ]
-  },
+{详细描述漏洞}
 
-  "section_knowledge": {
-    "title": "知识库匹配",
-    "matched": "匹配的规则ID",
-    "description": "规则描述"
-  },
+## 受影响文件
 
-  "section_recommendation": {
-    "title": "合入建议",
-    "action": "merge/review/defer",
-    "reason": "建议理由"
-  },
+{文件列表}
 
-  "section_analysis_detail": {
-    "title": "详细分析过程",
-    "steps": [
-      { "step": 1, "action": "获取 CVE 详情", "result": "..." }
-    ]
-  },
+## Kconfig 检查
 
-  "section_expert_analysis": {
-    "title": "内核专家详细分析",
-    "content": "作为内核领域专家，我对这个 CVE 的详细分析如下：..."
-  },
+| 配置 | 状态 | 结果 |
+|------|------|------|
+| CONFIG_XXX | enabled/disabled | affected/not_affected |
 
-  "metadata": {
-    "analyzed_by": "OpenCLAW (内核专家)",
-    "analyzed_at": "2026-03-18T15:00:00Z"
-  }
-}
+结论：{是否受影响}
+
+## 影响评估
+
+| 维度 | 级别 | 描述 |
+|------|------|------|
+| 功能影响 | high/medium/low | 描述 |
+| 性能影响 | high/medium/low | 描述 |
+| 可靠性影响 | high/medium/low | 描述 |
+
+## 知识库匹配
+
+- 匹配规则：{rule_id}
+- 描述：{description}
+
+## 合入建议
+
+**动作**: merge/review/defer
+
+**理由**: {建议理由}
+
+## 详细分析过程
+
+1. **Step 1 - 获取 CVE 详情**: {result}
+2. **Step 2 - 查询代码仓**: {result}
+3. **Step 3 - Kconfig 检查**: {result}
+4. **Step 4 - 知识库匹配**: {result}
+5. **Step 5 - 综合判断**: {result}
+
+---
+
+## 内核专家详细分析
+
+作为内核领域专家，我对这个 CVE 的详细分析如下：
+
+{详细分析内容}
+
+---
+
+*分析者: OpenCLAW (内核专家)*
+*分析时间: {analyzed_at}*
 ```
 
 **格式要点**：
-- 采用分段式 `section_` 结构
-- 新增 `section_expert_analysis`：作为内核专家的详细分析结论（不是一句话）
-- 每个维度独立评估（功能/性能/可靠性）
-- level 使用 high/medium/low
-- 必须有 metadata 标记分析者和时间
+- 采用 Markdown 格式，方便人类阅读
+- 结构化表格呈现关键信息
+- 详细分析作为最后章节
+- 保留 metadata 信息
 
 #### Step 4.6: 报告归档
 
