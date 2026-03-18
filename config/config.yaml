@@ -12,9 +12,19 @@ cve_analyzer:
 # 知识库配置
 knowledge_base:
   path: "~/.openclaw/skills/cve-review/knowledge/"
+  kconfig_rules: "~/.openclaw/skills/cve-review/knowledge/kconfig/"
+
+# 报告配置
+reports:
+  output_dir: "~/.openclaw/skills/cve-review/reports/"
+  format:
+    - json
+    - markdown
 
 # 分析配置
 analysis:
   default_action: "merge"
   require_reason_on_defer: true
+  code_query_enabled: true
+  independent_analysis: true
   parallel_analysis: 3
