@@ -265,7 +265,7 @@ git log --oneline -10 -- ${AFFECTED_FILE}
 {结合实际代码的影响分析}
 
 ---
-*分析者: OpenCLAW (内核专家)*
+*分析者: CVE影响评估Agent*
 *分析时间: {timestamp}*
 ```
 
