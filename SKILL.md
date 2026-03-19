@@ -405,6 +405,29 @@ analysis:
 
 ## 补充说明
 
+### 子 Agent 调用
+
+当需要并行分析多个 CVE 或批量处理时，可使用子 agent：
+
+**调用方式**：
+```python
+# 使用 sessions_spawn 工具
+sessions_spawn(
+    agentId="cve-review",  # 或其他 agent
+    task=f"分析 CVE-{cve_id}，输出报告",
+    mode="run"  # run: 一次性, session: 持续
+)
+```
+
+**触发条件**：
+- 批量分析多个 CVE（>5个）
+- 需要并行处理加速
+- 长时间分析任务
+
+**返回结果**：
+- 子 agent 完成后的报告
+- 汇总到主报告
+
 ### 工具开发
 
 流程固定、可提高效率的步骤可生成工具。工具需人工确认后才能正式使用。
