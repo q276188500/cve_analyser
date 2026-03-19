@@ -1,3 +1,8 @@
+---
+name: cve-review
+description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏洞，触发条件：(1) 用户提及 "CVE 检视"、"漏洞评估" (2) 分析具体 CVE ID (3) 提供时间段批量分析
+---
+
 # CVE Review SKILL - CVE 漏洞审查与影响评估
 
 ## 概述
