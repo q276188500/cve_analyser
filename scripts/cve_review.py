@@ -7,7 +7,7 @@ CVE Review Skill - 工具
 - 生成 LLM 分析所需的 Prompt
 
 使用方法：
-    python tools/cve_review.py CVE-2024-XXXX
+    python scripts/cve_review.py CVE-2024-XXXX
 
 注意：本工具仅用于数据获取，实际分析由 OpenCLAW Agent 完成。
 """

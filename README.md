@@ -74,7 +74,7 @@ cve-review/
 │   │   └── 11/                # 2025年11月报告
 │   └── 2026/
 │       └── 03/
-└── tools/
+└── scripts/
     ├── cve-analyzer/           # CVE 分析工具
     └── cve_review.py           # 审查脚本
 ```
@@ -130,7 +130,7 @@ CVE-2025-40107
 符合 OpenCLAW skill-creator 规范：
 - ✅ YAML frontmatter (name + description)
 - ✅ SKILL.md 定义完整流程
-- ✅ tools/ 集成 cve-analyzer
+- ✅ scripts/ 集成 cve-analyzer
 - ✅ knowledge/ 知识库
 - ✅ config/ 配置文件
 - ✅ reports/ 报告归档

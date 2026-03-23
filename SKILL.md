@@ -56,7 +56,7 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 **【强制】数据获取流程**：
 1. 先用 cve-analyzer 查询：
    ```bash
-   cd tools/cve-analyzer
+   cd scripts/cve-analyzer
    python -m cve_analyzer.cli query --since=2025-12-01 --until=2025-12-31
    ```
 2. 如果没有，执行 sync：
@@ -345,7 +345,7 @@ python -m cve_analyzer.cli sync --since=2025-12-01 --until=2025-12-31
 
 ### 1. cve-analyzer
 
-**路径**：`tools/cve-analyzer`
+**路径**：`scripts/cve-analyzer`
 
 **常用命令**：
 
@@ -379,7 +379,7 @@ kernel_repo:
   path: "~/workspace/linux-kernel/linux-5.10"
 
 cve_analyzer:
-  path: "tools/cve-analyzer"
+  path: "scripts/cve-analyzer"
 
 knowledge_base:
   path: "knowledge/"
