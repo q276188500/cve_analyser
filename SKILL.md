@@ -34,23 +34,20 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 
 ---
 
-## 使用模式
-
-### 1. 正常模式
-
-一次性执行完整流程，用户只需提供初始输入。
-
-### 2. 测试模式
-
-用户明确说明"测试模式"时，采用步骤执行：
-- 每完成一个步骤后，暂停等待用户确认
-- 用户可以干预：继续/跳过/停止
-
----
-
 ## 完整流程
 
+**开始前打印进度**：
+```
+══════════════════════════════════════════════════════════════
+【分析进度】当前 CVE: {CVE_ID}
+══════════════════════════════════════════════════════════════
+```
+
 ### Step 1: 代码仓指定与同步
+
+[Step 1/5] 代码仓指定与同步
+```
+
 
 **【强制】代码仓检查**：
 1. 读取 `config/config.yaml` 获取配置的代码仓路径
@@ -70,6 +67,10 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 ---
 
 ### Step 2: Kconfig 门控筛选
+
+[Step 2/5] Kconfig 门控筛选
+```
+
 
 **目的**：判断漏洞是否在当前配置下可触发，过滤掉不受影响的场景。
 
@@ -112,6 +113,10 @@ python3 scripts/cve-analyzer/start.py kconfig <cve_id> --config=/path/to/.config
 
 ### Step 3: 详细评估
 
+[Step 3/5] 详细评估
+```
+
+
 **【重要】由我（OpenCLAW 内核专家）主导整个分析过程。**
 
 **【强制约束】禁止跳步骤，禁止简化**：
@@ -121,18 +126,6 @@ python3 scripts/cve-analyzer/start.py kconfig <cve_id> --config=/path/to/.config
 - ✅ 必须：每个步骤完成后才能下一步
 - ✅ 可以：拆分多轮对话完成分析（记录进度）
 
-
-**记录进度**：
-- 每完成一个 CVE，记录当前进度
-- 下一轮从下一个 CVE 继续
-
-**示例**：
-```
-第一轮：CVE-1 (完成)
-第二轮：CVE-2 (完成)
-第三轮：CVE-3 (完成)
-```
-
 **每个 CVE 必须完成以下全部步骤（打勾确认）**：
 ```
 [ ] Step 3.1: 用 cve-analyzer 获取 CVE 详情
@@ -140,14 +133,11 @@ python3 scripts/cve-analyzer/start.py kconfig <cve_id> --config=/path/to/.config
 [ ] Step 3.3: 检索知识库
 ```
 
-**开始前打印进度**：
-```
-══════════════════════════════════════════════════════════════
-【分析进度】当前 CVE: {CVE_ID}
-══════════════════════════════════════════════════════════════
-```
 
 #### Step 3.1: 获取 CVE 详情
+
+  → [Step 3.1/5] 获取 CVE 详情
+
 
 **【强制】必须用 cve-analyzer 查询**：
 ```bash
@@ -174,6 +164,9 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 
 #### Step 3.2: Patch 代码与影响分析
 
+  → [Step 3.2/5] Patch 代码与影响分析
+
+
 **【强制】由我（内核专家）执行**：
 1. 展示 patch 关键代码片段
 2. 分析 patch 修改的具体逻辑
@@ -191,10 +184,17 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 
 #### Step 3.3: 知识库检索
 
+  → [Step 3.3/5] 知识库检索
+
+
 读取 `SKILL/knowledge/` 规则，匹配相关约束。
 
 
 ### Step 4: 综合判断与报告生成
+
+[Step 4/5] 综合判断与报告生成
+```
+
 
 **由我（内核专家）完成**：
 - 综合以上所有信息
@@ -286,6 +286,10 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 ```
 
 ### Step 5: 报告归档
+
+[Step 5/5] 报告归档
+```
+
 
 - 目录：`scripts/cve-analyzer/reports/{年份}/{月份}/`（由 config.yaml 中 `output.report_dir` 配置决定）
 - 文件：`{cve_id}.md`
