@@ -288,6 +288,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 ### Step 5: 报告归档
 
 [Step 5/5] 报告归档
+如果目录下已有相同报告则进行覆盖写入
 ```
 
 
