@@ -43,9 +43,7 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 ══════════════════════════════════════════════════════════════
 ```
 ### Step 1: 检查代码仓
-```
 [Step 1/5] 检查代码仓
-```
 **【强制】代码仓检查**：
 1. 读取 `config/config.yaml` 获取配置的代码仓路径
 2. 检查代码仓目录是否存在
@@ -54,9 +52,7 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 ---
 
 ### Step 2: Kconfig 门控筛选
-```
 [Step 2/5] Kconfig 门控筛选
-```
 
 **目的**：判断漏洞是否在当前配置下可触发，过滤掉不受影响的场景。
 **比较对象**：`kernel_config.path` 指定的文件（如未指定则用 `{kernel_repo.path}/.config`）
@@ -96,9 +92,7 @@ python3 scripts/cve-analyzer/start.py kconfig <cve_id> --config=/path/to/.config
 ---
 
 ### Step 3: 详细评估
-```
 [Step 3/5] 详细评估
-```
 **【重要】由我（OpenCLAW 内核专家）主导整个分析过程。**
 **【强制约束】禁止跳步骤，禁止简化**：
 - ❌ 禁止：不读代码就下结论
@@ -107,9 +101,7 @@ python3 scripts/cve-analyzer/start.py kconfig <cve_id> --config=/path/to/.config
 - ✅ 必须：每个步骤完成后才能下一步
 
 #### Step 3.1: 获取 CVE 详情
-```
   → [Step 3.1/5] 获取 CVE 详情
-```
 
 **【强制】必须用 cve-analyzer 查询**：
 ```bash
@@ -135,9 +127,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 
 
 #### Step 3.2: Patch 代码与影响分析
-```
   → [Step 3.2/5] Patch 代码与影响分析
-```
 
 **【强制】由我（内核专家）执行**：
 1. 展示 patch 关键代码片段
@@ -155,17 +145,13 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 - 修复质量：补丁是否完整
 
 #### Step 3.3: 知识库检索
-```
   → [Step 3.3/5] 知识库检索
-```
 
 读取 `knowledge/` 规则，匹配相关约束。
 
 
 ### Step 4: 综合判断与报告生成
-```
 [Step 4/5] 综合判断与报告生成
-```
 **由我（内核专家）完成**：
 - 综合以上所有信息
 - 直接给出合入建议（默认合入，除非有充分理由）
@@ -240,9 +226,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 > 如自检不通过，修订报告后再继续。
 
 ### Step 5: 报告归档
-```
 [Step 5/5] 报告归档
-```
 如果目录下已有相同报告则进行覆盖写入
 
 - 目录：`scripts/cve-analyzer/reports/{年份}/{月份}/`（由 config.yaml 中 `output.report_dir` 配置决定）
