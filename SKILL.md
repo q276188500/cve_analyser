@@ -372,24 +372,49 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 
 ## 配置文件
 
-`SKILL/config.yaml`：
+**注意：存在两套各自独立配置的配置文件，作用域不同。**
+
+### 1. cve-analyzer 工具配置（工具自带）
+
+**路径**：`scripts/cve-analyzer/configs/config.yaml`（cve-analyzer CLI 自动读取）
+
+这是 cve-analyzer 工具自己的配置文件，工具运行时自动加载，**不是 agent 自己读的**。
+
+常用配置项：
 ```yaml
-kernel_repo:
-  path: "~/workspace/linux-kernel/linux-5.10"
+# 内核源码目录（需含 .config 文件）
+kernel:
+  mode: "user_provided"
+  path: "/path/to/linux-5.10"      # ← 内核源码树根目录
 
-cve_analyzer:
-  path: "scripts/cve-analyzer"
+# 数据库路径
+data_dir: "./data"
+database_path: "./data/cve-analyzer.db"
 
-knowledge_base:
-  path: "knowledge/"
-
-reports:
-  output_dir: "reports/"
-
-analysis:
-  default_action: "merge"
-  require_reason_on_defer: true
+# 输出报告目录
+output:
+  report_dir: "./reports"
 ```
+
+### 2. SKILL 配置（agent 自己使用）
+
+以下配置由 agent 自己维护和管理，**不是文件，是运行时的配置参考**：
+
+| 配置项 | 说明 | 来源 |
+|--------|------|------|
+| `kernel_repo.path` | 内核源码目录 | 用户提供或工具配置 |
+| `kernel_config` | 内核 .config 文件完整路径 | **用户启动时提供**，如未提供则用 `{kernel_repo.path}/.config` |
+| `cve_analyzer.path` | 工具目录 | 固定为 `scripts/cve-analyzer` |
+| `knowledge_base.path` | 知识库目录 | 固定为 `SKILL/knowledge/` |
+| `reports.output_dir` | 报告输出根目录 | 来自工具配置 |
+
+**.config 文件指定方式**：
+- 启动 agent 时由用户传入 `kernel_config` 参数
+- 如未传入，默认为 `{kernel_repo.path}/.config`
+- cve-analyzer 的 `kconfig` 命令需要此路径：
+  ```bash
+  python3 scripts/cve-analyzer/start.py kconfig <cve_id> --config=/path/to/.config
+  ```
 
 ---
 
