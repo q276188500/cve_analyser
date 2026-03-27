@@ -5,9 +5,13 @@ kernel_repo:
   path: "~/workspace/linux-kernel/linux-5.10"
   branch: "main"
 
+# kconfig使能配置文件
+kernel_config:
+  path: "~/workspace/linux-kernel/linux-5.10/.config"
+
 # cve-analyzer 配置
 cve_analyzer:
-  path: "tools/cve-analyzer"
+  path: "scripts/cve-analyzer"
 
 # 知识库配置
 knowledge_base:
