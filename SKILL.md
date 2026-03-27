@@ -250,13 +250,22 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 
 **执行流程**：
 
-**Step P1: 获取上游 Patch**
-- 从 CVE 参考链接中找到上游 commit hash
-- 获取完整 patch 内容：
+**Step P1: 从数据库获取 Patch 元数据**
+- 查 `scripts/cve-analyzer/data/cve-analyzer.db` 的 `patches` 表：
   ```bash
-  curl -sL "https://github.com/torvalds/linux/commit/{commit_hash}.patch" -o "reports/patches/{cve_id}/upstream.patch"
+  python3 scripts/cve-analyzer/start.py query --keyword={cve_id}
   ```
-- 记录 commit hash 到 metadata
+- 确认 `patches` 表中该 CVE 关联的 `commit_hash` 列表
+- 检查 `patches.body` 是否有内容：
+  - **有内容** → 直接使用数据库中的 body
+  - **无内容** → 从上游获取（见 Step P1.5）
+
+**Step P1.5: 从上游获取 Patch（如数据库 body 为空）**
+- 用 commit hash 从 git mirror 获取 patch body：
+  ```bash
+  git -C {kernel_mirror_path} show {commit_hash} --format= > upstream.patch
+  ```
+- 存入 `reports/patches/{cve_id}/upstream.patch`
 
 **Step P2: 定位本地待修改文件**
 - 从 patch 内容中提取 `diff --git a/... b/...` 的文件路径
