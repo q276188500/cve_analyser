@@ -50,27 +50,7 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 
 ## 完整流程
 
-### Step 1: 数据获取
-
-**输入**：CVE ID（单个）
-
-**【强制】数据获取流程**：
-1. 先用 cve-analyzer 查询：
-   ```bash
-   python3 scripts/cve-analyzer/start.py query --since=2025-12-01 --until=2025-12-31
-   ```
-2. 如果没有，执行 sync：
-   ```bash
-   python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
-   ```
-
-**禁止**：
-- ❌ 直接用 curl 从 NVD 获取
-- ❌ 跳过 cve-analyzer
-
----
-
-### Step 2: 代码仓指定与同步
+### Step 1: 代码仓指定与同步
 
 **【强制】代码仓检查**：
 1. 读取 `config/config.yaml` 获取配置的代码仓路径
@@ -89,7 +69,7 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 
 ---
 
-### Step 3: 初步筛选
+### Step 2: 初步筛选
 
 **比较对象**：代码仓 `.config`
 
@@ -122,7 +102,7 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 
 ---
 
-### Step 4: 详细评估
+### Step 3: 详细评估
 
 **【重要】由我（OpenCLAW 内核专家）主导整个分析过程。**
 
@@ -148,19 +128,19 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 
 **每个 CVE 必须完成以下全部步骤（打勾确认）**：
 ```
-[ ] Step 4.1: 用 cve-analyzer 获取 CVE 详情
-[ ] Step 4.2: 执行代码仓查询，分析patch对应代码上下文并分析影响
-[ ] Step 4.3: 检索知识库
+[ ] Step 3.1: 用 cve-analyzer 获取 CVE 详情
+[ ] Step 3.2: 执行代码仓查询，分析patch对应代码上下文并分析影响
+[ ] Step 3.3: 检索知识库
 ```
 
 **开始前打印进度**：
 ```
 ══════════════════════════════════════════════════════════════
-【分析进度】共 {总数} 个 CVE，当前第 {当前序号} 个: {CVE_ID}
+【分析进度】当前 CVE: {CVE_ID}
 ══════════════════════════════════════════════════════════════
 ```
 
-#### Step 4.1: 获取 CVE 详情
+#### Step 3.1: 获取 CVE 详情
 
 **【强制】必须用 cve-analyzer 查询**：
 ```bash
@@ -185,7 +165,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 - 关联 patch
 
 
-#### Step 4.2: Patch代码 分析
+#### Step 3.2: Patch代码 分析
 
 **【强制】由我（内核专家）执行**：
 1. 展示 patch 关键代码片段
@@ -201,12 +181,12 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 - 危害程度：数据泄露/系统崩溃/提权
 - 修复质量：补丁是否完整
 
-#### Step 4.3: 知识库检索
+#### Step 3.3: 知识库检索
 
 读取 `SKILL/knowledge/` 规则，匹配相关约束。
 
 
-### Step 5: 综合判断与报告生成
+### Step 4: 综合判断与报告生成
 
 **由我（内核专家）完成**：
 - 综合以上所有信息
@@ -288,7 +268,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 *分析时间: {timestamp}*
 ```
 
-### Step 6: 报告校验（红线要求）
+### Step 5: 报告校验（红线要求）
 
 **【红线要求】校验不通过绝不能跳过，宁愿不完成也不能放水**
 
@@ -319,28 +299,28 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 ```
 
 **校验规则（红线）**：
-- 任何一项不满足 → **立即停止，从 Step 4.1 重新开始**
-- 有步骤跳过 → **立即停止，从 Step 4.1 重新开始**
+- 任何一项不满足 → **立即停止，从 Step 3.1 重新开始**
+- 有步骤跳过 → **立即停止，从 Step 3.1 重新开始**
 - 报告内容与建议类型不匹配 → **立即停止**
 - **绝不能：降级处理、带病归档**
 
 **如果校验失败**：
 1. 停止当前分析
 2. 记录失败原因
-3. 从 Step 4.1 重新开始完整分析
+3. 从 Step 3.1 重新开始完整分析
 
-### Step 7: 报告归档
+### Step 6: 报告归档
 
 - 目录：`scripts/cve-analyzer/reports/{年份}/{月份}/`（由 config.yaml 中 `output.report_dir` 配置决定）
 - 文件：`{cve_id}.md`
 
 ---
 
-### Step 8: 批量汇总
+### Step 7: 批量汇总
 
 完成后输出汇总：
 ```
-分析完成，共 {总数} 个 CVE，建议合入 {X} 个，暂不合入 {Y} 个
+CVE 分析完成，共 {总数} 个 CVE，建议合入 {X} 个，暂不合入 {Y} 个
 ```
 
 ---
