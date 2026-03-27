@@ -163,10 +163,10 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 
 **【强制】必须用 cve-analyzer 查询**：
 ```bash
-# 先查询 CVE 是否在数据库
-python3 scripts/cve-analyzer/start.py query --keyword=CVE-2025-40214
+# 精确获取 CVE 详情（推荐）
+python3 scripts/cve-analyzer/start.py analyze CVE-2025-40214
 
-# 如果没有，同步
+# 如果数据库中没有，再同步时间范围
 python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 ```
 
