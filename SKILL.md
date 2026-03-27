@@ -21,6 +21,17 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 - "CVE 检视"、"CVE review"、"漏洞评估"、"分析CVE"、"分析漏洞"
 - 分析某个具体的 CVE ID
 
+## 数据来源原则
+
+> ⚠️ **数据库是所有数据的单一数据源（Single Source of Truth）**
+
+- **对外提供的数据**（报告、patch 文件等）—— 必须从数据库读取
+- **内部分析过程** —— patch 信息、commit hash 等也必须从数据库读取，不再直接访问外部网络获取
+- **数据库未收录的 CVE/patch** —— 先通过 cve-analyzer sync 补全数据库，再继续分析
+- **禁止**：直接 curl/wget 从 NVD/GitHub/kernel.org 获取数据用于分析流程
+
+> 当前数据库 `patches.body` 字段暂未补全，补全后所有 patch 内容均从数据库获取。
+
 ---
 
 ## 【重要】我的角色定位
