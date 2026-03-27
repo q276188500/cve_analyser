@@ -166,9 +166,13 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 # 精确获取 CVE 详情（推荐）
 python3 scripts/cve-analyzer/start.py analyze CVE-2025-40214
 
-# 如果数据库中没有，再同步时间范围
+# 如果数据库中没有，再同步时间范围（sync 不支持指定单个 CVE ID）
 python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 ```
+
+**限制**：
+- `sync` 命令只支持时间范围同步，无法指定单个 CVE ID
+- 如果用户只想补充某个特定 CVE，需要同步包含该 CVE 的时间范围
 
 **禁止**：
 - ❌ 直接用 curl 从 NVD 获取
@@ -354,7 +358,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 | `python3 scripts/cve-analyzer/start.py query --severity= --keyword=` | 查询数据库 |
 | `python3 scripts/cve-analyzer/start.py analyze <cve_id>` | 分析单个 CVE |
 | `python3 scripts/cve-analyzer/start.py extract-patches --cve-id=<cve_id>` | 从 CVE 引用中提取 patch 信息入库 |
-| `python3 scripts/cve-analyzer/start.py patch-status <cve_id> --kernel-path=` | 检测补丁状态 |
+| `python3 scripts/cve-analyzer/start.py patch-status <cve_id> --kernel-path=` | 检测补丁状态（**必须指定 --kernel-path**） |
 | `python3 scripts/cve-analyzer/start.py kconfig <cve_id> --config=` | Kconfig 依赖分析 |
 | `python3 scripts/cve-analyzer/start.py llm-analyze <cve_id> --provider=` | LLM 分析 |
 | `python3 scripts/cve-analyzer/start.py report <cve_id> --format=markdown` | 生成报告 |
@@ -423,7 +427,7 @@ output:
 
 1. KCONFIG 筛选：必须基于代码仓 .config
 2. 默认合入：除非有充分理由
-3. 每个 CVE 独立分析，不能批量处理
+3. 批量分析可使用子 agent 并行处理（见补充说明）
 4. 必须读取实际代码，禁止空泛描述
 
 ---
