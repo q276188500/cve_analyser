@@ -1,6 +1,6 @@
 ---
 name: cve-review
-description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏洞，触发条件：(1) 用户提及 "CVE 检视"、"漏洞评估" (2) 分析具体 CVE ID (3) 提供时间段批量分析
+description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏洞，触发条件：(1) 用户提及 "CVE 检视"、"漏洞评估" (2) 分析具体 CVE ID
 ---
 
 # CVE Review SKILL - CVE 漏洞审查与影响评估
@@ -11,6 +11,8 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 
 **核心定位**：我是一个内核领域专家，能够主动分析代码、查询仓库、综合判断，而不是简单的问题转发器。
 
+**分析模式**：每次只分析 **一个** CVE ID，逐个完成。
+
 ---
 
 ## 触发条件
@@ -18,7 +20,6 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 用户提及以下内容时自动触发：
 - "CVE 检视"、"CVE review"、"漏洞评估"
 - 分析某个具体的 CVE ID
-- 提供时间段进行批量 CVE 分析
 
 ---
 
@@ -51,7 +52,7 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 
 ### Step 1: 数据获取
 
-**输入**：时间段 或 CVE ID
+**输入**：CVE ID（单个）
 
 **【强制】数据获取流程**：
 1. 先用 cve-analyzer 查询：
@@ -427,35 +428,12 @@ output:
 
 1. KCONFIG 筛选：必须基于代码仓 .config
 2. 默认合入：除非有充分理由
-3. 批量分析可使用子 agent 并行处理（见补充说明）
+3. 每次只分析一个 CVE，不支持批量并行
 4. 必须读取实际代码，禁止空泛描述
 
 ---
 
 ## 补充说明
-
-### 子 Agent 调用
-
-当需要并行分析多个 CVE 或批量处理时，可使用子 agent：
-
-**调用方式**：
-```python
-# 使用 sessions_spawn 工具
-sessions_spawn(
-    agentId="cve-review",  # 或其他 agent
-    task=f"分析 CVE-{cve_id}，输出报告",
-    mode="run"  # run: 一次性, session: 持续
-)
-```
-
-**触发条件**：
-- 批量分析多个 CVE（>5个）
-- 需要并行处理加速
-- 长时间分析任务
-
-**返回结果**：
-- 子 agent 完成后的报告
-- 汇总到主报告
 
 ### 工具开发
 
