@@ -326,7 +326,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 
 ### Step 7: 报告归档
 
-- 目录：`SKILL/reports/{年份}/{月份}/`
+- 目录：`scripts/cve-analyzer/reports/{年份}/{月份}/`（由 config.yaml 中 `output.report_dir` 配置决定）
 - 文件：`{cve_id}.md`
 
 ---
