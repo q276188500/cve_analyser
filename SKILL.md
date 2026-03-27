@@ -18,7 +18,7 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 ## 触发条件
 
 用户提及以下内容时自动触发：
-- "CVE 检视"、"CVE review"、"漏洞评估"
+- "CVE 检视"、"CVE review"、"漏洞评估"、"分析CVE"、"分析漏洞"
 - 分析某个具体的 CVE ID
 
 ---
@@ -69,18 +69,26 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 
 ---
 
-### Step 2: 初步筛选
+### Step 2: Kconfig 门控筛选
 
-**比较对象**：代码仓 `.config`
+**目的**：判断漏洞是否在当前配置下可触发，过滤掉不受影响的场景。
 
-| 条件 | 结果 | 原因 |
+**比较对象**：`kernel_config` 指定的 `.config` 文件（如未指定则用 `{kernel_repo.path}/.config`）
+
+**执行方式**：
+```bash
+python3 scripts/cve-analyzer/start.py kconfig <cve_id> --config=/path/to/.config
+```
+
+**判定结果**：
+
+| 条件 | 结果 | 后续 |
 |------|------|------|
-| KCONFIG 未开启 | 无影响 | 配置未启用 |
-| 非内核问题 | 无影响 | 非内核 CVE |
+| KCONFIG 未开启 | **defer**（不分析） | 直接生成简化报告，结束 |
+| 非内核问题 | **defer**（不分析） | 直接生成简化报告，结束 |
+| KCONFIG 已开启 | **merge**（继续分析） | 进入 Step 3 |
 
-**该流程评估无需合入后不再需要详细评估，直接生成该CVE漏洞报告**
-
-**defer 报告格式（只需包含）**：
+**defer 报告格式（Kconfig 未开启时生成）**：
 ```markdown
 # CVE 分析报告: {cve_id}
 
@@ -109,7 +117,6 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 **【强制约束】禁止跳步骤，禁止简化**：
 - ❌ 禁止：不读代码就下结论
 - ❌ 禁止：只看 CVE 描述就写报告
-- ❌ 禁止：跳过 Kconfig 检查
 - ❌ 禁止：受限于篇幅而简化报告
 - ✅ 必须：每个步骤完成后才能下一步
 - ✅ 可以：拆分多轮对话完成分析（记录进度）
@@ -165,16 +172,17 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 - 关联 patch
 
 
-#### Step 3.2: Patch代码 分析
+#### Step 3.2: Patch 代码与影响分析
 
 **【强制】由我（内核专家）执行**：
 1. 展示 patch 关键代码片段
 2. 分析 patch 修改的具体逻辑
-3. patch修改文件上下文分析
+3. patch 修改文件上下文分析
 4. 对比修改前后的差异
+5. 漏洞触发条件与利用可行性分析
 
 
-**分析框架**：
+**分析维度**：
 - 问题分类：UAF/越界/死锁/数据损坏...
 - 利用难度：需要什么条件触发
 - 影响范围：哪些场景受影响
@@ -208,10 +216,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 ## 受影响文件
 {文件列表}
 
-## Kconfig 检查
-| 配置 | 状态 |
-
-## 合入建议（快速获取策略）
+## 合入建议
 **动作**: merge/defer
 **理由**: {理由}
 
@@ -275,6 +280,8 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 **根据合入建议类型，采用不同的校验标准**：
 
 #### defer 报告校验项：
+> defer 报告由 Step 2 直接生成，此处仅复核格式完整性。
+
 ```
 [ ] 基本信息完整 (CVE ID, 严重程度, 日期)
 [ ] 漏洞类型描述
@@ -283,12 +290,12 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 ```
 
 #### merge 报告校验项：
+> 仅在 Step 2 通过 Kconfig 门控后，进入 Step 3~4 分析并生成报告。
+
 ```
 [ ] 基本信息完整 (CVE ID, 严重程度, 日期)
 [ ] 漏洞类型描述
 [ ] 受影响文件列表
-[ ] 代码仓查询结果 (ls + grep + git log)
-[ ] Kconfig 检查结果
 [ ] 知识库匹配结果
 [ ] 合入建议 (merge + 理由)
 [ ] 影响评估表格
