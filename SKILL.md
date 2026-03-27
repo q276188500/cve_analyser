@@ -56,12 +56,11 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 **【强制】数据获取流程**：
 1. 先用 cve-analyzer 查询：
    ```bash
-   cd scripts/cve-analyzer
-   python -m cve_analyzer.cli query --since=2025-12-01 --until=2025-12-31
+   python3 scripts/cve-analyzer/start.py query --since=2025-12-01 --until=2025-12-31
    ```
 2. 如果没有，执行 sync：
    ```bash
-   python -m cve_analyzer.cli sync --since=2025-12-01 --until=2025-12-31
+   python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
    ```
 
 **禁止**：
@@ -165,10 +164,10 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
 **【强制】必须用 cve-analyzer 查询**：
 ```bash
 # 先查询 CVE 是否在数据库
-python -m cve_analyzer.cli query --keyword=CVE-2025-40214
+python3 scripts/cve-analyzer/start.py query --keyword=CVE-2025-40214
 
 # 如果没有，同步
-python -m cve_analyzer.cli sync --since=2025-12-01 --until=2025-12-31
+python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 ```
 
 **禁止**：
@@ -351,13 +350,13 @@ python -m cve_analyzer.cli sync --since=2025-12-01 --until=2025-12-31
 
 | 命令 | 用途 |
 |------|------|
-| `sync --since= --until=` | 同步 CVE 数据 |
-| `query --severity= --keyword=` | 查询数据库 |
-| `analyze <cve_id>` | 分析单个 CVE |
-| `patch-status <cve_id> --kernel-path=` | 检测补丁状态 |
-| `kconfig <cve_id> --config=` | Kconfig 依赖分析 |
-| `llm-analyze <cve_id> --provider=` | LLM 分析 |
-| `report <cve_id> --format=markdown` | 生成报告 |
+| `python3 scripts/cve-analyzer/start.py sync --since= --until=` | 同步 CVE 数据 |
+| `python3 scripts/cve-analyzer/start.py query --severity= --keyword=` | 查询数据库 |
+| `python3 scripts/cve-analyzer/start.py analyze <cve_id>` | 分析单个 CVE |
+| `python3 scripts/cve-analyzer/start.py patch-status <cve_id> --kernel-path=` | 检测补丁状态 |
+| `python3 scripts/cve-analyzer/start.py kconfig <cve_id> --config=` | Kconfig 依赖分析 |
+| `python3 scripts/cve-analyzer/start.py llm-analyze <cve_id> --provider=` | LLM 分析 |
+| `python3 scripts/cve-analyzer/start.py report <cve_id> --format=markdown` | 生成报告 |
 
 ### 2. 领域知识库
 
