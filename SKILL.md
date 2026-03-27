@@ -291,7 +291,22 @@ cd {kernel_repo_path}
 git apply --check reports/patches/{cve_id}/upstream.patch
 ```
 - 如果**直接应用成功** → 跳到 Step P5
-- 如果**有冲突** → 进入 Step P4
+- 如果**有冲突或部分不适用** → 进入 Step P3.5
+
+**Step P3.5: 检测本地是否已修复**
+在尝试适配前，先检查本地代码是否已包含该修复。
+
+- 读取本地源文件内容
+- 对比上游 patch 的关键修改点（如函数返回值路径中是否已添加 fdput 调用）
+- 如果本地代码**已包含修复**：生成标记文件，文件名加 `already-fixed` 前缀，跳过 Step P4
+
+**检测结果处理**：
+
+| 情况 | 后续操作 | 文件名 |
+|------|---------|--------|
+| 本地已修复 | 生成 `already-fixed` 标记，跳过 Step P4 | `CVE-XXXX-XXXX-already-fixed.patch` |
+| 部分已修复 | 继续 Step P4，仅处理未修复部分 | `CVE-XXXX-XXXX.patch` |
+| 本地未修复 | 继续 Step P4，完整适配 | `CVE-XXXX-XXXX.patch` |
 
 **Step P4: 冲突分析与适配**
 - 用 `git apply --3way --reject` 保留无法合并的部分
@@ -310,15 +325,18 @@ git diff HEAD -- {modified_files} > "reports/patches/{cve_id}/{cve_id}.patch"
 - 目录结构：
   ```
   reports/patches/{cve_id}/
-  ├── upstream.patch      # 上游原始 patch（如有冲突）
-  └── {cve_id}.patch     # 适配后的本地 patch
+  ├── CVE-XXXX-XXXX-upstream.patch   # 上游原始 patch（带 CVE ID 前缀）
+  ├── CVE-XXXX-XXXX.patch           # 适配后本地 patch（需修复的部分）
+  └── CVE-XXXX-XXXX-already-fixed.patch  # 已修复标记（无需再合入）
   ```
-- patch 文件状态标记为**待人工审核**，不自动合入
+- 文件名中含 `already-fixed` 表示本地代码已包含修复，人工无需处理
+- patch 文件状态统一标记为**待人工审核**，不自动合入
 
 **禁止**：
 - ❌ 确认冲突内容前不擅自合入
 - ❌ 自动 commit 到本地代码仓
 - ❌ patch review 前直接应用
+- ❌ 对已标记 `already-fixed` 的 CVE 重复生成 patch
 
 ---
 
