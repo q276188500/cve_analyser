@@ -236,6 +236,72 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 
 ### 主流程结束
 
+---
+
+## Patch 生成（如需）
+
+> ⚠️ **此步骤为可选项**，仅在用户明确要求生成 patch 时执行。正常报告分析流程到此结束。
+
+**触发条件**：用户说明"生成 patch"或"生成 CVE-XXXX-XXXX.patch"时执行。
+
+**前置条件**：Step 4 决策为 merge，报告已生成。
+
+**目标**：将上游 CVE patch 适配到本地代码仓，生成待人工审核的本地 patch 文件。
+
+**执行流程**：
+
+**Step P1: 获取上游 Patch**
+- 从 CVE 参考链接中找到上游 commit hash
+- 获取完整 patch 内容：
+  ```bash
+  curl -sL "https://github.com/torvalds/linux/commit/{commit_hash}.patch" -o "reports/patches/{cve_id}/upstream.patch"
+  ```
+- 记录 commit hash 到 metadata
+
+**Step P2: 定位本地待修改文件**
+- 从 patch 内容中提取 `diff --git a/... b/...` 的文件路径
+- 确认本地代码仓中对应文件是否存在
+  ```bash
+  ls {kernel_repo_path}/{affected_file}
+  ```
+
+**Step P3: 尝试应用上游 Patch**
+```bash
+cd {kernel_repo_path}
+git apply --check reports/patches/{cve_id}/upstream.patch
+```
+- 如果**直接应用成功** → 跳到 Step P5
+- 如果**有冲突** → 进入 Step P4
+
+**Step P4: 冲突分析与适配**
+- 用 `git apply --3way --reject` 保留无法合并的部分
+- 分析每个 `.rej` 文件（未成功应用的 hunk）
+- 读取原始文件内容，在对应位置手工修改代码以适配
+- 删除所有 `.orig` 和 `.rej` 文件
+- 用 `git diff` 确认修改内容正确
+
+**Step P5: 生成本地 Patch**
+```bash
+cd {kernel_repo_path}
+git diff HEAD -- {modified_files} > "reports/patches/{cve_id}/{cve_id}.patch"
+```
+
+**Step P6: 归档**
+- 目录结构：
+  ```
+  reports/patches/{cve_id}/
+  ├── upstream.patch      # 上游原始 patch（如有冲突）
+  └── {cve_id}.patch     # 适配后的本地 patch
+  ```
+- patch 文件状态标记为**待人工审核**，不自动合入
+
+**禁止**：
+- ❌ 确认冲突内容前不擅自合入
+- ❌ 自动 commit 到本地代码仓
+- ❌ patch review 前直接应用
+
+---
+
 ## 路径约定
 
 > ⚠️ **除特别说明外，本 SKILL 中所有路径均相对于本 SKILL 所在目录（即 `SKILL.md` 所在目录）。**
