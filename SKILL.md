@@ -353,6 +353,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 | `python3 scripts/cve-analyzer/start.py sync --since= --until=` | 同步 CVE 数据 |
 | `python3 scripts/cve-analyzer/start.py query --severity= --keyword=` | 查询数据库 |
 | `python3 scripts/cve-analyzer/start.py analyze <cve_id>` | 分析单个 CVE |
+| `python3 scripts/cve-analyzer/start.py extract-patches --cve-id=<cve_id>` | 从 CVE 引用中提取 patch 信息入库 |
 | `python3 scripts/cve-analyzer/start.py patch-status <cve_id> --kernel-path=` | 检测补丁状态 |
 | `python3 scripts/cve-analyzer/start.py kconfig <cve_id> --config=` | Kconfig 依赖分析 |
 | `python3 scripts/cve-analyzer/start.py llm-analyze <cve_id> --provider=` | LLM 分析 |
