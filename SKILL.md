@@ -60,10 +60,6 @@ description: CVE 漏洞审查与影响评估。用于分析 Linux 内核 CVE 漏
    - 我帮你克隆官方仓库 (需要较长时间)
    ```
 
-**【强制】代码仓同步**：
-- 每次评估前执行 `git pull` 同步到最新
-- 如果是只读仓库/本地仓库，记录警告但继续分析
-
 ---
 
 ### Step 2: Kconfig 门控筛选
@@ -187,7 +183,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
   → [Step 3.3/5] 知识库检索
 
 
-读取 `SKILL/knowledge/` 规则，匹配相关约束。
+读取 `knowledge/` 规则，匹配相关约束。
 
 
 ### Step 4: 综合判断与报告生成
@@ -297,6 +293,12 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 
 ---
 
+## 路径约定
+
+> ⚠️ **除特别说明外，本 SKILL 中所有路径均相对于本 SKILL 所在目录（即 `SKILL.md` 所在目录）。**
+>
+> 例如 `scripts/cve-analyzer/start.py` 完整路径为 `{SKILL目录}/scripts/cve-analyzer/start.py`
+
 ## 依赖工具
 
 ### 1. cve-analyzer
@@ -318,7 +320,7 @@ python3 scripts/cve-analyzer/start.py sync --since=2025-12-01 --until=2025-12-31
 
 ### 2. 领域知识库
 
-**路径**：`SKILL/knowledge/`
+**路径**：`knowledge/`
 
 **格式**：YAML 文件，包含：
 - `id`: 规则 ID
